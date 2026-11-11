@@ -1,0 +1,94 @@
+COMMENT
+  Exact arithmetic on fractions, expressions over them and their approximation
+  of reals: a program in the classic style of the Revised Report, with bold
+  words in capitals and spaces inside the tags.
+COMMENT
+BEGIN
+  MODE FRAC = STRUCT (INT num, den);
+
+  PROC gcd = (INT a, b) INT: (b = 0 | ABS a | gcd (b, a MOD b));
+
+  CO a fraction in lowest terms; its denominator is positive CO
+  PROC frac = (INT n, d) FRAC:
+    IF d = 0 THEN print (("division by zero", new line)); stop
+    ELSE INT g = gcd (n, d) * SIGN d; (n OVER g, d OVER g)
+    FI;
+
+  OP + = (FRAC a, b) FRAC: frac (num OF a * den OF b + num OF b * den OF a, den OF a * den OF b),
+     - = (FRAC a, b) FRAC: frac (num OF a * den OF b - num OF b * den OF a, den OF a * den OF b),
+     * = (FRAC a, b) FRAC: frac (num OF a * num OF b, den OF a * den OF b),
+     / = (FRAC a, b) FRAC: frac (num OF a * den OF b, den OF a * num OF b),
+     - = (FRAC a) FRAC: (- num OF a, den OF a);
+  OP = = (FRAC a, b) BOOL: num OF a = num OF b AND den OF a = den OF b,
+     < = (FRAC a, b) BOOL: num OF a * den OF b < num OF b * den OF a;
+  PRIO MAX = 9;
+  OP MAX = (FRAC a, b) FRAC: (a < b | b | a);
+
+  # an expression is a fraction, a variable named by a letter, or an operation on two expressions #
+  MODE EXPR = UNION (FRAC, CHAR, REF NODE),
+       NODE = STRUCT (CHAR operator, EXPR left, right);
+
+  PROC node = (CHAR operator, EXPR left, right) REF NODE: HEAP NODE := (operator, left, right);
+
+  [1 : 26] UNION (FRAC, VOID) binding;
+  FOR i TO UPB binding DO binding[i] := EMPTY OD;
+
+  PROC bind = (CHAR name, FRAC f) VOID: binding[ABS name - ABS "a" + 1] := f;
+
+  PROC value = (EXPR e) FRAC:
+    CASE e IN
+      (FRAC f): f,
+      (CHAR name):
+        CASE binding[ABS name - ABS "a" + 1] IN
+          (FRAC f): f
+        OUT print (("the variable ", name, " has no value", new line)); stop
+        ESAC,
+      (REF NODE n):
+        BEGIN FRAC l = value (left OF n), r = value (right OF n);
+              CHAR o = operator OF n;
+              (o = "+" | l + r |: o = "-" | l - r |: o = "*" | l * r |: o = "/" | l / r | l MAX r)
+        END
+    ESAC;
+
+  CO the text of an expression, fully parenthesised CO
+  PROC text = (EXPR e) STRING:
+    CASE e IN
+      (FRAC f): whole (num OF f, 0) + (den OF f = 1 | "" | "/" + whole (den OF f, 0)),
+      (CHAR name): name,
+      (REF NODE n): "(" + text (left OF n) + " " + operator OF n + " " + text (right OF n) + ")"
+    ESAC;
+
+  CO the fraction with the least denominator that lies within eps of x CO
+  PROC approximation = (REAL x, eps) FRAC:
+    BEGIN FRAC best := (0, 1);
+          FOR d TO 100 000 DO
+            INT n = ENTIER (x * d + 0.5);
+            IF ABS (x - n / d) < eps THEN best := frac (n, d); GOTO found FI
+          OD;
+          print (("no fraction is that close", new line));
+    found: best
+    END;
+
+  CO the number of ones in the binary representation of n CO
+  PROC ones = (INT n) INT:
+    BEGIN BITS b := BIN n; INT count := 0;
+          WHILE b /= 2r0 DO ((b AND 2r1) = 2r1 | count +:= 1); b := b SHR 1 OD;
+          count
+    END;
+
+  PROC show = (STRING what, FRAC f) VOID:
+    printf (($ g, " = ", g(0), "/", g(0), l $, what, num OF f, den OF f));
+
+  bind ("x", frac (3, 4));
+  bind ("y", frac (-5, 6));
+  EXPR e = node ("+", node ("*", "x", "x"), node ("/", frac (1, 1), node ("-", "x", "y")));
+  show (text (e), value (e));
+  show ("the greater of x and y", value (node ("m", "x", "y")));
+
+  REAL pi approx = 3.14159 26535 89793, e approx = 2.71828 18284 59045;
+  show ("pi within 1e-3", approximation (pi approx, 1.0e-3));
+  show ("pi within 1e-6", approximation (pi approx, 1.0e-6));
+  show ("e within 1e-6", approximation (e approx, 1.0e-6));
+  printf (($ "ones in ", g(0), ": ", g(0), l $, 355, ones (355), max int, ones (max int)));
+  print (("16r ff = ", whole (ABS 16r ff, 0), ", 2r 1010 1010 = ", whole (ABS 2r 1010 1010, 0), new line))
+END

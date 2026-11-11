@@ -1,0 +1,62 @@
+# formatted output (RR 10.3.4, 10.3.5.1): patterns, insertions, collections, choice, general and format patterns #
+BEGIN
+  printf (($"["3d"]"l$, 12));
+  printf (($"["zd"]"l$, 7));
+  printf (($"x="12z+d l$, -42));
+  printf (($"x="12z+d l$, 42));
+  printf (($4z-d l$, 3));
+  printf (($+zd.11d l$, 3.14159));
+  printf (($.12de+2d l$, 31415.9));
+  printf (($-d.2de+dl$, -0.00123));
+  printf (($2r6d l$, 2r101));
+  printf (($16r4d l$, 16rbeef));
+  printf (($"it is "b l$, TRUE));
+  printf (($5a l$, "hello"));
+  printf (($a l$, "x"));
+  printf (($+d.2d i +d.2d l$, 1.5 I -2.25));
+  printf (($+zd.3di-zd.1d l$, 1.5 I 2.25));
+  printf (($zd"-"zd"-19"2d l$, 180168));   # RR 10.3.4.1.1.jj: a zero after a d frame is suppressed too #
+  printf (($4z+ s. "," d l$, 3.5));
+  printf (($3z+.d l$, 0.25));
+  # alignments and insertions #
+  printf (($l 3x"a" 2x "b" l$));
+  printf (($10k "k" l$));
+  printf (($q"q"q l$));
+  printf (($3"ab" l$));
+  # replicated collections, dynamic replicators, pictures without a pattern #
+  printf (($"["2(zd" ")"]"l$, 1, 2));
+  printf (($"<"n(3)("x")">" l$));
+  printf (($"<"n(0)("x")">" l$));
+  printf (($n(2)d l$, 42));
+  INT w := 4; printf (($"|"n(w)d"|" l$, 42));
+  printf (($2(3d, 2x "|" ) l$, 1, 2, 3, 4));
+  printf (($3(d) "." 2("ab" 2(x d)) l$, 1, 2, 3, 4, 5, 6, 7));
+  # choice, general and format patterns #
+  printf (($c("mon", "tues", "wednes") "day" l$, 2));
+  printf (($b("yes", "no") l$, FALSE));
+  printf (($g l$, 42));
+  printf (($g(5) l$, 42));
+  printf (($g(10, 3) l$, 3.14159));
+  printf (($g(12, 3, 2) l$, 3.14159));
+  printf (($f($3d$) "/" l$, 7));
+  FORMAT real_or_int = $5d$;
+  printf (($"{" f(real_or_int) "}" l$, 9));
+  FORMAT f = $"x = "5d, " y = "5d l$;
+  printf ((f, 1, 2));
+  printf (($3d l$, 1, 2));
+  # the format is repeated when exhausted; on format end may provide another #
+  printf (($2d" "$, 1, 2, 3)); printf (($l$));
+  FILE out; STRING book; associate (out, book);
+  on_format_end (out, (REF FILE ff) BOOL: (putf (ff, $"<"d">"$); TRUE));
+  putf (out, ($d l$, 1, 2, 3)); close (out);
+  print ((book, newline));
+  # backspace on a memory book #
+  STRING page; FILE mem; associate (mem, page);
+  putf (mem, ($"abcd" 2y "XY" l$)); close (mem);
+  print ((page, newline));
+  # a value that does not fit calls on value error #
+  FILE o2; STRING s2; associate (o2, s2);
+  on_value_error (o2, (REF FILE ff) BOOL: (put (ff, "?"); TRUE));
+  putf (o2, ($2d x$, 12345, 12)); close (o2);
+  print ((s2, newline))
+END

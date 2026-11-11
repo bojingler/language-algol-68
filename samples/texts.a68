@@ -1,0 +1,136 @@
+COMMENT TEXTS - searching, counting and comparing texts (Foundation 9.4; doc/libraries.md).  A text is a row of
+  characters, each a code point: a STRING, a row of fixed bounds, a trim of either.  The routines are what the C
+  library's memchr, memrchr, strstr, strpbrk, strspn and memcmp offer, as PA/68 text of our own on the kernels of
+  KERNELS: a short text is searched by a plain loop where it stands, a long one by as many workers as there are, and
+  the result is the same either way.
+  An index yielded is an index of the text given, in its own bounds; LWB s - 1 says that there is none (0 for a text
+  whose bounds begin at one).  Everything here is PURE and usable in deterministic bodies.  A text taken from a
+  variable is a value from then on, as any row passed to a routine is: an engine copies it at the call.  Who searches
+  one long text many times holds it as a value ([] CHAR t = text) and gives that. COMMENT
+
+MODULE TEXTS =
+ACCESS KERNELS
+DEF
+
+  INT leaf = leaf_of (4);   { a character is four bytes }
+
+  { ---- one character ---- }
+  { the least index of s at which c stands (memchr, strchr) }
+  PUB PURE PROC find_char = ([] CHAR s, CHAR c) INT:
+    BEGIN INT at = first_where (LWB s, UPB s, leaf,
+                                (INT lo, hi) INT: BEGIN INT found := hi + 1; FOR i FROM lo TO hi WHILE found > hi DO (s[i] = c | found := i) OD; found END);
+          (at > UPB s | LWB s - 1 | at)
+    END;
+  { the greatest index of s at which c stands (memrchr, strrchr) }
+  PUB PURE PROC find_last_char = ([] CHAR s, CHAR c) INT:
+    last_where (LWB s, UPB s, leaf,
+                (INT lo, hi) INT: BEGIN INT found := lo - 1; FOR i FROM hi BY -1 TO lo WHILE found < lo DO (s[i] = c | found := i) OD; found END);
+  { how often c stands in s }
+  PUB PURE PROC count_char = ([] CHAR s, CHAR c) INT:
+    count_where (LWB s, UPB s, leaf, (INT lo, hi) INT: BEGIN INT n := 0; FOR i FROM lo TO hi DO (s[i] = c | n +:= 1) OD; n END);
+
+  { ---- a set of characters ---- }
+  { A set is a text; its characters below 256 are held as a table for the search, so that the common sets cost one
+    look a character whatever their size (calling a routine for every character of the text took eight times as long
+    as the search for one character); the others are looked for in the set itself }
+  PURE PROC low_table = ([] CHAR set) [] BOOL:
+    BEGIN [0 : 255] BOOL low; FOR a FROM 0 TO 255 DO low[a] := FALSE OD;
+          FOR k FROM LWB set TO UPB set DO (ABS set[k] < 256 | low[ABS set[k]] := TRUE) OD;
+          low
+    END;
+  PURE PROC has_high = ([] CHAR set) BOOL:
+    BEGIN BOOL high := FALSE; FOR k FROM LWB set TO UPB set WHILE NOT high DO high := ABS set[k] >= 256 OD; high END;
+  PURE PROC in_set = ([] CHAR set, CHAR c) BOOL:
+    BEGIN BOOL found := FALSE; FOR k FROM LWB set TO UPB set WHILE NOT found DO found := set[k] = c OD; found END;
+  { the least index in lo .. hi at which a character of the set stands (wanted) or one that is not of it (NOT wanted) }
+  PURE PROC first_of_set = ([] CHAR s, [] CHAR set, [] BOOL low, BOOL high, wanted, INT lo, hi) INT:
+    BEGIN INT found := hi + 1;
+          FOR i FROM lo TO hi WHILE found > hi DO
+            INT a = ABS s[i];
+            ((a < 256 | low[a] |: high | in_set (set, s[i]) | FALSE) = wanted | found := i)
+          OD;
+          found
+    END;
+  { the least index of s at which a character of the set stands (strpbrk, strcspn) }
+  PUB PURE PROC find_in_set = ([] CHAR s, [] CHAR set) INT:
+    BEGIN [] BOOL low = low_table (set); BOOL high = has_high (set);
+          INT at = first_where (LWB s, UPB s, leaf, (INT lo, hi) INT: first_of_set (s, set, low, high, TRUE, lo, hi));
+          (at > UPB s | LWB s - 1 | at)
+    END;
+  { the least index of s at which a character stands that is not of the set (strspn) }
+  PUB PURE PROC find_not_in_set = ([] CHAR s, [] CHAR set) INT:
+    BEGIN [] BOOL low = low_table (set); BOOL high = has_high (set);
+          INT at = first_where (LWB s, UPB s, leaf, (INT lo, hi) INT: first_of_set (s, set, low, high, FALSE, lo, hi));
+          (at > UPB s | LWB s - 1 | at)
+    END;
+
+  { ---- a text in a text ---- }
+  { t stands in s from index i on; i + UPB t - LWB t <= UPB s }
+  PURE PROC stands_at = ([] CHAR s, [] CHAR t, INT i) BOOL:
+    BEGIN BOOL same := TRUE; INT d = i - LWB t; FOR k FROM LWB t TO UPB t WHILE same DO same := s[k + d] = t[k] OD; same END;
+  { the least index of s from which on t stands in it (strstr, memmem); an empty t stands at LWB s.  Every index at
+    which t may begin is tried: the pieces of the search are ranges of such indices, and a piece reads up to the
+    length of t less one beyond its end }
+  PUB PURE PROC find_text = ([] CHAR s, [] CHAR t) INT:
+    BEGIN INT m = UPB t - LWB t + 1; INT top = UPB s - m + 1;   { the last index at which t may begin }
+          IF m <= 0 THEN LWB s
+          ELIF top < LWB s THEN LWB s - 1
+          ELIF m = 1 THEN find_char (s, t[LWB t])
+          ELSE CHAR head = t[LWB t];
+               INT at = first_where (LWB s, top, leaf,
+                                     (INT lo, hi) INT:
+                                       BEGIN INT found := hi + 1;
+                                             FOR i FROM lo TO hi WHILE found > hi DO IF s[i] = head THEN (stands_at (s, t, i) | found := i) FI OD;
+                                             found
+                                       END);
+               (at > top | LWB s - 1 | at)
+          FI
+    END;
+  { the greatest index of s from which on t stands in it; an empty t stands at UPB s + 1 }
+  PUB PURE PROC find_last_text = ([] CHAR s, [] CHAR t) INT:
+    BEGIN INT m = UPB t - LWB t + 1; INT top = UPB s - m + 1;
+          IF m <= 0 THEN UPB s + 1
+          ELIF top < LWB s THEN LWB s - 1
+          ELSE CHAR head = t[LWB t];
+               last_where (LWB s, top, leaf,
+                           (INT lo, hi) INT:
+                             BEGIN INT found := lo - 1;
+                                   FOR i FROM hi BY -1 TO lo WHILE found < lo DO IF s[i] = head THEN (stands_at (s, t, i) | found := i) FI OD;
+                                   found
+                             END)
+          FI
+    END;
+  { at how many indices of s the text t begins; occurrences that overlap are counted each (an empty t: none) }
+  PUB PURE PROC count_text = ([] CHAR s, [] CHAR t) INT:
+    BEGIN INT m = UPB t - LWB t + 1; INT top = UPB s - m + 1;
+          IF m <= 0 OR top < LWB s THEN 0
+          ELSE CHAR head = t[LWB t];
+               count_where (LWB s, top, leaf,
+                            (INT lo, hi) INT:
+                              BEGIN INT n := 0; FOR i FROM lo TO hi DO IF s[i] = head THEN (stands_at (s, t, i) | n +:= 1) FI OD; n END)
+          FI
+    END;
+
+  { ---- two texts ---- }
+  { where a and b first differ, counted from one over their characters in order: 0 when they are the same text; when
+    one is the beginning of the other, the number of the first character only the longer one has }
+  PUB PURE PROC first_difference = ([] CHAR a, [] CHAR b) INT:
+    BEGIN INT na = UPB a - LWB a + 1, nb = UPB b - LWB b + 1; INT common = (na < nb | na | nb);
+          INT da = LWB a - 1, db = LWB b - 1;
+          INT at = first_where (1, common, leaf,
+                                (INT lo, hi) INT: BEGIN INT found := hi + 1; FOR k FROM lo TO hi WHILE found > hi DO (a[k + da] /= b[k + db] | found := k) OD; found END);
+          (at <= common | at |: na = nb | 0 | common + 1)
+    END;
+  { the order of a and b by their code points, a shorter text before a longer one that begins with it (memcmp, strcmp):
+    -1 when a comes first, 0 when they are the same text, 1 when b comes first }
+  PUB PURE PROC compare = ([] CHAR a, [] CHAR b) INT:
+    BEGIN INT na = UPB a - LWB a + 1, nb = UPB b - LWB b + 1; INT at = first_difference (a, b);
+          IF at = 0 THEN 0
+          ELIF at > na THEN -1
+          ELIF at > nb THEN 1
+          ELSE (ABS a[at + LWB a - 1] < ABS b[at + LWB b - 1] | -1 | 1)
+          FI
+    END;
+
+  SKIP
+FED

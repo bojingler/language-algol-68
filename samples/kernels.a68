@@ -1,0 +1,83 @@
+COMMENT KERNELS - the kernels of the library (Foundation 9.4; doc/libraries.md): searching and counting over a range of
+  indices, for the routines that work on long rows of any mode.  A kernel knows nothing of the row: its caller gives
+  it a routine for one piece of the range (the least index in the piece at which something holds; how many indices
+  of the piece something holds for), which runs a plain loop over the row's elements, and the kernel decides by the
+  size of the range how to work: a short range is one call of that routine, in place; a long one is cut into leaves
+  that tasks take (DPAR FOR).  The results are indices and counts, which do not depend on how a range is cut, so
+  the size of a leaf is a matter of time alone and comes from the platform record (pa68_platform, the standard
+  prelude): half of the first-level cache.  Everything here is PURE and usable in deterministic bodies.
+  A range holds fewer than max int indices. COMMENT
+
+MODULE KERNELS =
+DEF
+
+  { the indices a piece routine takes at once for elements of so many bytes: half the first-level cache of the machine
+    the program runs on, 256 at the least }
+  PUB PURE PROC leaf_of = (INT element_bytes) INT:
+    BEGIN INT n = (cache_size OF pa68_platform)[1] OVER 2 OVER (element_bytes < 1 | 1 | element_bytes); (n < 256 | 256 | n) END;
+
+  COMMENT The least index in lo .. hi that first_in finds, hi + 1 when it finds none.  first_in (l, h) yields the least
+    index in l .. h at which the caller's condition holds, any index above h when there is none.
+    A search must not look at the whole range when the answer is near its start, and tasks cannot tell each other
+    that one of them has found it.  So the range is taken in blocks: a first leaf in place, then each time a block as
+    long as all that has been looked at, cut into leaves that are searched at once.  With the answer at the p-th index
+    fewer than 2 p + leaf indices are looked at, whatever the length of the range, and all but the first leaf by as
+    many workers as there are. COMMENT
+  PUB PURE PROC first_where = (INT lo, hi, leaf, PURE PROC (INT, INT) INT first_in) INT:
+    BEGIN INT at := hi + 1, next := lo, block := (leaf < 1 | 1 | leaf); INT piece = block;
+          WHILE at > hi AND next <= hi DO
+            INT last = (hi - next < block | hi | next + block - 1);
+            IF last - next < 2 * piece THEN
+              INT found = first_in (next, last); (found <= last | at := found)
+            ELSE
+              INT from = next, pieces = (last - next + piece) OVER piece;
+              [] INT firsts = DPAR FOR k TO pieces DO
+                INT l = from + (k - 1) * piece; INT h = (last - l < piece | last | l + piece - 1);
+                INT found = first_in (l, h); (found <= h | found | last + 1)
+              OD;
+              FOR k TO pieces WHILE at > hi DO (firsts[k] <= last | at := firsts[k]) OD
+            FI;
+            next := last + 1; block := next - lo
+          OD;
+          at
+    END;
+
+  { the greatest index in lo .. hi that last_in finds, lo - 1 when it finds none; last_in (l, h) yields the greatest
+    index in l .. h at which the caller's condition holds, any index below l when there is none.  The mirror image of
+    first_where: the blocks are taken from the upper end }
+  PUB PURE PROC last_where = (INT lo, hi, leaf, PURE PROC (INT, INT) INT last_in) INT:
+    BEGIN INT at := lo - 1, next := hi, block := (leaf < 1 | 1 | leaf); INT piece = block;
+          WHILE at < lo AND next >= lo DO
+            INT first = (next - lo < block | lo | next - block + 1);
+            IF next - first < 2 * piece THEN
+              INT found = last_in (first, next); (found >= first | at := found)
+            ELSE
+              INT upto = next, pieces = (next - first + piece) OVER piece;
+              [] INT lasts = DPAR FOR k TO pieces DO
+                INT h = upto - (k - 1) * piece; INT l = (h - first < piece | first | h - piece + 1);
+                INT found = last_in (l, h); (found >= l | found | first - 1)
+              OD;
+              FOR k TO pieces WHILE at < lo DO (lasts[k] >= first | at := lasts[k]) OD
+            FI;
+            next := first - 1; block := hi - next
+          OD;
+          at
+    END;
+
+  { the sum over lo .. hi of what count_in yields for the pieces of the range; count_in (l, h) yields for how many
+    indices in l .. h the caller's condition holds.  Every index is looked at, so the whole range is cut into leaves
+    at once }
+  PUB PURE PROC count_where = (INT lo, hi, leaf, PURE PROC (INT, INT) INT count_in) INT:
+    BEGIN INT piece = (leaf < 1 | 1 | leaf);
+          IF hi < lo THEN 0
+          ELIF hi - lo < 2 * piece THEN count_in (lo, hi)
+          ELSE INT pieces = (hi - lo + piece) OVER piece;
+               [] INT counts = DPAR FOR k TO pieces DO
+                 INT l = lo + (k - 1) * piece; count_in (l, (hi - l < piece | hi | l + piece - 1))
+               OD;
+               INT n := 0; FOR k TO pieces DO n +:= counts[k] OD; n
+          FI
+    END;
+
+  SKIP
+FED

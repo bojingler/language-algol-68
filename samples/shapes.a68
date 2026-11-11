@@ -1,0 +1,7 @@
+COMMENT a module of the test prog.a68: it accesses a module of its own COMMENT
+MODULE SHAPES =
+ACCESS UNITS
+DEF
+  PUB PROC area = (REAL r) REAL: scale * r * r;
+  print (("shapes ready", new_line))
+FED

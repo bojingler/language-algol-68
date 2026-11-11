@@ -1,0 +1,26 @@
+PR profile extended PR
+# Extension constructs that the neutralizer must lower for the ga68 bootstrap. #
+BEGIN
+  PURE PROC (INT) INT sq = (INT x) INT: x * x;
+  PURE OP SUM = ([] INT a) INT:
+    BEGIN INT s := 0; FOR i FROM LWB a TO UPB a DO s +:= a[i] OD; s END;
+  INT n := 10;
+  [] INT squares = DPAR FOR i TO n DO sq (i) OD;
+  FUT INT total = ASYNC (SUM squares);
+  [] INT pair = DPAR (AWAIT total, n);        # n is captured by value (C2): inside the body it is an INT #
+  puts ("squares " + whole (UPB squares, 0) + " sum " + whole (pair[1], 0) + " n " + whole (pair[2], 0) + "'n");
+  [] INT odds = DPAR FOR i FROM 1 BY 2
+                     TO 9                      # a comment inside the loop header #
+                DO INT twice = 2 * i;
+                   twice - i
+                OD;
+  puts ("odds " + whole (SUM odds, 0) + " upb " + whole (UPB odds, 0) + "'n");
+  [] INT triangle = DPAR FOR i TO 4 DO [] INT inner = DPAR FOR j TO i DO j OD; SUM inner OD;
+  puts ("triangle " + whole (SUM triangle, 0) + "'n");
+  [] INT none = DPAR FOR i FROM 5 TO 1 DO i OD;
+  [] INT down = DPAR FOR i FROM 5 BY -2 TO 1 DO i OD;
+  puts ("none " + whole (UPB none, 0) + " down " + whole (UPB down, 0) + " first " + whole (down[1], 0) + "'n");
+  FUT REAL area := ASYNC (2.5 * 4.0);
+  REAL got = AWAIT area;
+  puts ("area " + whole (ROUND got, 0) + "'n")
+END

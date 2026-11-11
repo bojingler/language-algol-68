@@ -1,0 +1,141 @@
+# Snippets for ALGOL 68: the clauses of the Revised Report in their full and brief forms,
+# declarations, and the module facility and parallel extensions of PA/68.  Reserved words
+# are in capitals, declared modes begin with a capital, tags are in small letters.
+'.source.algol68':
+  # ---- programs and closed clauses ----
+  'Program':
+    'prefix': 'prog'
+    'body': 'COMMENT ${1:what the program does} COMMENT\nBEGIN\n\t$0\nEND'
+  'Program in the extended profile of PA/68':
+    'prefix': 'progx'
+    'body': 'PR profile extended PR\nCOMMENT ${1:what the program does} COMMENT\nBEGIN\n\t$0\nEND'
+  'BEGIN … END':
+    'prefix': 'begin'
+    'body': 'BEGIN\n\t$0\nEND'
+  'COMMENT … COMMENT':
+    'prefix': 'comment'
+    'body': 'COMMENT ${1:text} COMMENT'
+
+  # ---- conditional clauses (RR 3.4) ----
+  'IF … THEN … FI':
+    'prefix': 'if'
+    'body': 'IF ${1:condition} THEN\n\t$0\nFI'
+  'IF … THEN … ELSE … FI':
+    'prefix': 'ife'
+    'body': 'IF ${1:condition} THEN\n\t${2:SKIP}\nELSE\n\t${3:SKIP}\nFI'
+  'IF … THEN … ELIF … THEN … ELSE … FI':
+    'prefix': 'elif'
+    'body': 'IF ${1:condition} THEN\n\t${2:SKIP}\nELIF ${3:condition} THEN\n\t${4:SKIP}\nELSE\n\t${5:SKIP}\nFI'
+  'Brief conditional ( … | … | … )':
+    'prefix': 'bif'
+    'body': '(${1:condition} | ${2:then} | ${3:else})'
+  'Brief conditional with else-if ( … | … |: … | … | … )':
+    'prefix': 'belif'
+    'body': '(${1:condition} | ${2:then} |: ${3:condition} | ${4:then} | ${5:else})'
+
+  # ---- case and conformity clauses (RR 3.4) ----
+  'CASE … IN … OUT … ESAC':
+    'prefix': 'case'
+    'body': 'CASE ${1:index} IN\n\t${2:first},\n\t${3:second}\nOUT\n\t${4:SKIP}\nESAC'
+  'Brief case ( … | … , … | … )':
+    'prefix': 'bcase'
+    'body': '(${1:index} | ${2:first}, ${3:second} | ${4:otherwise})'
+  'Conformity clause CASE … IN (MODE name): … ESAC':
+    'prefix': 'conf'
+    'body': 'CASE ${1:value} IN\n\t(${2:INT} ${3:i}): ${4:SKIP},\n\t(${5:REAL} ${6:x}): ${7:SKIP}\nESAC'
+  'Brief conformity clause':
+    'prefix': 'bconf'
+    'body': '(${1:value} | (${2:INT} ${3:i}): ${4:SKIP}, (${5:REAL} ${6:x}): ${7:SKIP})'
+
+  # ---- loop clauses (RR 3.5) ----
+  'FOR … FROM … TO … DO … OD':
+    'prefix': 'for'
+    'body': 'FOR ${1:i} FROM ${2:1} TO ${3:n} DO\n\t$0\nOD'
+  'FOR … FROM … BY … TO … DO … OD':
+    'prefix': 'forby'
+    'body': 'FOR ${1:i} FROM ${2:n} BY ${3:-1} TO ${4:1} DO\n\t$0\nOD'
+  'FOR … TO … WHILE … DO … OD':
+    'prefix': 'forw'
+    'body': 'FOR ${1:i} TO ${2:n} WHILE ${3:condition} DO\n\t$0\nOD'
+  'TO … DO … OD':
+    'prefix': 'to'
+    'body': 'TO ${1:n} DO\n\t$0\nOD'
+  'WHILE … DO … OD':
+    'prefix': 'while'
+    'body': 'WHILE ${1:condition} DO\n\t$0\nOD'
+  'DO … OD':
+    'prefix': 'do'
+    'body': 'DO\n\t$0\nOD'
+
+  # ---- declarations (RR 4) ----
+  'PROC with parameters':
+    'prefix': 'proc'
+    'body': 'PROC ${1:name} = (${2:INT} ${3:a}) ${4:INT}:\n\t${0:SKIP}'
+  'PROC without parameters':
+    'prefix': 'procv'
+    'body': 'PROC ${1:name} = VOID:\n\tBEGIN\n\t\t$0\n\tEND'
+  'MODE … = STRUCT ( … )':
+    'prefix': 'mode'
+    'body': 'MODE ${1:Name} = STRUCT (${2:INT} ${3:first}, ${4:REAL} ${5:second});'
+  'MODE … = UNION ( … )':
+    'prefix': 'modeu'
+    'body': 'MODE ${1:Name} = UNION (${2:INT}, ${3:REAL});'
+  'MODE of a linked structure':
+    'prefix': 'moder'
+    'body': 'MODE ${1:Node} = STRUCT (${2:INT} ${3:value}, REF ${1:Node} ${4:next});'
+  'OP with two operands and its priority':
+    'prefix': 'op'
+    'body': 'PRIO ${1:MAX} = ${2:9};\nOP ${1:MAX} = (${3:INT} ${4:a}, ${5:b}) ${6:INT}: ${0:SKIP}'
+  'OP with one operand':
+    'prefix': 'opm'
+    'body': 'OP ${1:NORM} = (${2:REAL} ${3:a}) ${4:REAL}: ${0:SKIP}'
+  'PRIO':
+    'prefix': 'prio'
+    'body': 'PRIO ${1:MAX} = ${2:9};'
+
+  # ---- transput (RR 10.3) ----
+  'print (( … , newline))':
+    'prefix': 'print'
+    'body': 'print ((${1:value}, newline))'
+  'printf with a format text':
+    'prefix': 'printf'
+    'body': 'printf ((\\$ ${1:g(0)}, l \\$, ${2:value}))'
+
+  # ---- parallel clauses of the Report (RR 3.3, 10.2.4) ----
+  'PAR ( … , … )':
+    'prefix': 'par'
+    'body': 'PAR (${1:first}, ${2:second})'
+  'SEMA … = LEVEL …':
+    'prefix': 'sema'
+    'body': 'SEMA ${1:mutex} = LEVEL ${2:1};'
+
+  # ---- deterministic parallel extensions of PA/68 ----
+  'DPAR ( … , … )':
+    'prefix': 'dpar'
+    'body': 'DPAR (${1:first}, ${2:second})'
+  'DPAR FOR … TO … DO … OD (a row of the results)':
+    'prefix': 'dparfor'
+    'body': '[] ${1:INT} ${2:results} = DPAR FOR ${3:i} FROM ${4:1} TO ${5:n} DO\n\t${0:SKIP}\nOD;'
+  'ASYNC: a future':
+    'prefix': 'async'
+    'body': 'FUT ${1:INT} ${2:future} = ASYNC (${3:SKIP});'
+  'AWAIT a future':
+    'prefix': 'await'
+    'body': 'AWAIT ${1:future}'
+  'PURE PROC':
+    'prefix': 'pure'
+    'body': 'PURE PROC ${1:name} = (${2:INT} ${3:a}) ${4:INT}:\n\t${0:SKIP}'
+
+  # ---- the module facility ----
+  'MODULE … = DEF … FED':
+    'prefix': 'module'
+    'body': 'MODULE ${1:NAME} =\nDEF\n\tPUB ${2:INT} ${3:answer} = ${4:42};\n\t$0\n\tSKIP\nFED'
+  'MODULE … = ACCESS … DEF … FED':
+    'prefix': 'modulea'
+    'body': 'MODULE ${1:NAME} =\nACCESS ${2:OTHER}\nDEF\n\tPUB ${3:INT} ${4:answer} = ${5:42};\n\t$0\n\tSKIP\nFED'
+  'MODULE … = DEF … POSTLUDE … FED':
+    'prefix': 'modulep'
+    'body': 'MODULE ${1:NAME} =\nDEF\n\tPUB ${2:INT} ${3:answer} = ${4:42};\n\t$0\n\tSKIP\nPOSTLUDE\n\t${5:SKIP}\nFED'
+  'ACCESS … BEGIN … END':
+    'prefix': 'access'
+    'body': 'ACCESS ${1:NAME}\nBEGIN\n\t$0\nEND'

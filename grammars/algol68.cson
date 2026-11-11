@@ -1,0 +1,836 @@
+# ALGOL 68 as the Revised Report defines it, in UPPER stropping, with the module facility
+# and the deterministic parallel extensions of PA/68.
+#
+# Written from the Revised Report (section 9.4, representations; section 10, the standard
+# prelude) and from the PA/68 lexer and its specification.  README.md says what is covered
+# and where the grammar decides differently from a compiler.
+#
+# Conventions of this file:
+#   * a bold word is a capital letter followed by letters of either case, digits and
+#     underscores; every rule for one ends in (?![A-Za-z0-9_]) and the rule `indications`
+#     takes the words no other rule knows, so that no rule can start inside a bold word;
+#   * a tag is a small letter followed by small letters, digits and underscores, and it goes
+#     on over blanks (the Report's typographical display features);
+#   * regular expressions keep to what Oniguruma (TextMate, Atom) and PCRE (GitHub) share;
+#     characters outside ASCII stand outside character classes.
+'scopeName': 'source.algol68'
+'name': 'ALGOL 68'
+'fileTypes': [
+  'a68'
+]
+'maxTokensPerLine': 1000
+'limitLineLength': false
+'patterns': [
+  {
+    'include': '#code'
+  }
+]
+'repository':
+  'code':
+    'patterns': [
+      {
+        'include': '#comments'
+      }
+      {
+        'include': '#pragmats'
+      }
+      {
+        'include': '#strings'
+      }
+      {
+        'include': '#format-text'
+      }
+      {
+        'include': '#numbers'
+      }
+      {
+        'include': '#declarations'
+      }
+      {
+        'include': '#access-clause'
+      }
+      {
+        'include': '#jumps'
+      }
+      {
+        'include': '#bold-words'
+      }
+      {
+        'include': '#labels'
+      }
+      {
+        'include': '#standard-prelude'
+      }
+      {
+        'include': '#tags'
+      }
+      {
+        'include': '#operators'
+      }
+      {
+        'include': '#punctuation'
+      }
+    ]
+
+  # ------------------------------------------------------------------ comments ----
+  # RR 9.4.1.h: a comment ends at the next occurrence of the symbol that opened it.
+  'comments':
+    'patterns': [
+      {
+        'include': '#hash-comment'
+      }
+      {
+        'name': 'comment.block.cent.algol68'
+        'begin': '¢'
+        'beginCaptures':
+          '0':
+            'name': 'punctuation.definition.comment.begin.algol68'
+        'end': '¢'
+        'endCaptures':
+          '0':
+            'name': 'punctuation.definition.comment.end.algol68'
+      }
+      {
+        'name': 'comment.block.bold.algol68'
+        'begin': '(?<![A-Za-z0-9_])COMMENT(?![A-Za-z0-9_])'
+        'beginCaptures':
+          '0':
+            'name': 'punctuation.definition.comment.begin.algol68'
+        'end': '(?<![A-Za-z0-9_])COMMENT(?![A-Za-z0-9_])'
+        'endCaptures':
+          '0':
+            'name': 'punctuation.definition.comment.end.algol68'
+      }
+      {
+        'name': 'comment.block.bold.algol68'
+        'begin': '(?<![A-Za-z0-9_])CO(?![A-Za-z0-9_])'
+        'beginCaptures':
+          '0':
+            'name': 'punctuation.definition.comment.begin.algol68'
+        'end': '(?<![A-Za-z0-9_])CO(?![A-Za-z0-9_])'
+        'endCaptures':
+          '0':
+            'name': 'punctuation.definition.comment.end.algol68'
+      }
+      {
+        'include': '#brace-comment'
+      }
+      {
+        'include': '#note-comment'
+      }
+    ]
+  'hash-comment':
+    'name': 'comment.block.hash.algol68'
+    'begin': '#'
+    'beginCaptures':
+      '0':
+        'name': 'punctuation.definition.comment.begin.algol68'
+    'end': '#'
+    'endCaptures':
+      '0':
+        'name': 'punctuation.definition.comment.end.algol68'
+  # Brace comments (PA/68 and GNU Algol 68) nest; a string denotation inside one is passed
+  # over, so a brace in it neither opens nor closes.
+  'brace-comment':
+    'name': 'comment.block.brace.algol68'
+    'begin': '\\{'
+    'beginCaptures':
+      '0':
+        'name': 'punctuation.definition.comment.begin.algol68'
+    'end': '\\}'
+    'endCaptures':
+      '0':
+        'name': 'punctuation.definition.comment.end.algol68'
+    'patterns': [
+      {
+        'include': '#brace-comment'
+      }
+      {
+        'begin': '"'
+        'end': '"(?!")'
+        'patterns': [
+          {
+            'match': '""'
+          }
+        ]
+      }
+    ]
+  # NOTE ... ETON (GNU Algol 68) nests.  NOTE is an ordinary bold word in the Report's
+  # language, so it opens a comment only where the line shows that it is one: an ETON
+  # follows on the same line, or NOTE is the last word of its line.
+  'note-comment':
+    'name': 'comment.block.bold.note.algol68'
+    'begin': '(?<![A-Za-z0-9_])NOTE(?![A-Za-z0-9_])(?=[ \\t]*$|.*(?<![A-Za-z0-9_])ETON(?![A-Za-z0-9_]))'
+    'beginCaptures':
+      '0':
+        'name': 'punctuation.definition.comment.begin.algol68'
+    'end': '(?<![A-Za-z0-9_])ETON(?![A-Za-z0-9_])'
+    'endCaptures':
+      '0':
+        'name': 'punctuation.definition.comment.end.algol68'
+    'patterns': [
+      {
+        'include': '#note-comment-nested'
+      }
+    ]
+  'note-comment-nested':
+    'begin': '(?<![A-Za-z0-9_])NOTE(?![A-Za-z0-9_])'
+    'end': '(?<![A-Za-z0-9_])ETON(?![A-Za-z0-9_])'
+    'patterns': [
+      {
+        'include': '#note-comment-nested'
+      }
+    ]
+
+  # ------------------------------------------------------------------ pragmats ----
+  'pragmats':
+    'patterns': [
+      {
+        'name': 'meta.preprocessor.pragmat.algol68'
+        'begin': '(?<![A-Za-z0-9_])PRAGMAT(?![A-Za-z0-9_])'
+        'beginCaptures':
+          '0':
+            'name': 'keyword.control.directive.pragmat.algol68'
+        'end': '(?<![A-Za-z0-9_])PRAGMAT(?![A-Za-z0-9_])'
+        'endCaptures':
+          '0':
+            'name': 'keyword.control.directive.pragmat.algol68'
+      }
+      {
+        'name': 'meta.preprocessor.pragmat.algol68'
+        'begin': '(?<![A-Za-z0-9_])PR(?![A-Za-z0-9_])'
+        'beginCaptures':
+          '0':
+            'name': 'keyword.control.directive.pragmat.algol68'
+        'end': '(?<![A-Za-z0-9_])PR(?![A-Za-z0-9_])'
+        'endCaptures':
+          '0':
+            'name': 'keyword.control.directive.pragmat.algol68'
+      }
+    ]
+
+  # --------------------------------------------------------------- denotations ----
+  # RR 8.1.4, 8.3: a quote doubled inside a denotation is one quote; a denotation of one
+  # item is a character denotation.  A denotation ends with its line.  The apostrophe
+  # forms are the string breaks of the Standard Hardware Representation (PA/68, GNU).
+  'strings':
+    'patterns': [
+      {
+        'name': 'string.quoted.double.character.algol68'
+        'match': '(")(?:[^"\'\\n]|("")|(\'[ntrf\']|\'\\([^)"\\n]*\\)))(")(?!")'
+        'captures':
+          '1':
+            'name': 'punctuation.definition.string.begin.algol68'
+          '2':
+            'name': 'constant.character.escape.quote.algol68'
+          '3':
+            'name': 'constant.character.escape.break.algol68'
+          '4':
+            'name': 'punctuation.definition.string.end.algol68'
+      }
+      {
+        'include': '#string'
+      }
+    ]
+  'string':
+    'name': 'string.quoted.double.algol68'
+    'begin': '"'
+    'beginCaptures':
+      '0':
+        'name': 'punctuation.definition.string.begin.algol68'
+    'end': '"(?!")|$'
+    'endCaptures':
+      '0':
+        'name': 'punctuation.definition.string.end.algol68'
+    'patterns': [
+      {
+        'name': 'constant.character.escape.quote.algol68'
+        'match': '""'
+      }
+      {
+        'name': 'constant.character.escape.break.algol68'
+        'match': '\'(?:[ntrf\']|\\([ \\t]*(?:(?:u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})[ \\t]*,?[ \\t]*)*\\))'
+      }
+    ]
+
+  # RR 10.3.4: a format text between formatter symbols.  Frames, insertions and
+  # replicators are items of the text; the units of a dynamic replicator `n (...)`, of a
+  # general pattern `g (...)` and of a format pattern `f (...)` are program text again.
+  'format-text':
+    'name': 'string.other.format.algol68'
+    'begin': '\\$'
+    'beginCaptures':
+      '0':
+        'name': 'punctuation.definition.string.begin.algol68'
+    'end': '\\$'
+    'endCaptures':
+      '0':
+        'name': 'punctuation.definition.string.end.algol68'
+    'patterns': [
+      {
+        'include': '#format-items'
+      }
+    ]
+  'format-items':
+    'patterns': [
+      {
+        'include': '#hash-comment'
+      }
+      {
+        'include': '#string'
+      }
+      {
+        'name': 'meta.embedded.unit.algol68'
+        'begin': '([nfg])[ \\t]*(\\()'
+        'beginCaptures':
+          '1':
+            'name': 'constant.other.placeholder.format.algol68'
+          '2':
+            'name': 'punctuation.section.embedded.begin.algol68'
+        'end': '\\)'
+        'endCaptures':
+          '0':
+            'name': 'punctuation.section.embedded.end.algol68'
+        'contentName': 'source.algol68.embedded'
+        'patterns': [
+          {
+            'include': '#balanced-parentheses'
+          }
+          {
+            'include': '#code'
+          }
+        ]
+      }
+      {
+        'begin': '\\('
+        'beginCaptures':
+          '0':
+            'name': 'punctuation.section.group.begin.algol68'
+        'end': '\\)'
+        'endCaptures':
+          '0':
+            'name': 'punctuation.section.group.end.algol68'
+        'patterns': [
+          {
+            'include': '#format-items'
+          }
+        ]
+      }
+      {
+        'name': 'constant.other.placeholder.format.algol68'
+        'match': '[a-z]|[-+.]'
+      }
+      {
+        'name': 'constant.numeric.replicator.algol68'
+        'match': '[0-9]+'
+      }
+      {
+        'name': 'punctuation.separator.comma.algol68'
+        'match': ','
+      }
+    ]
+  'balanced-parentheses':
+    'begin': '\\('
+    'beginCaptures':
+      '0':
+        'name': 'punctuation.section.parens.begin.algol68'
+    'end': '\\)'
+    'endCaptures':
+      '0':
+        'name': 'punctuation.section.parens.end.algol68'
+    'patterns': [
+      {
+        'include': '#balanced-parentheses'
+      }
+      {
+        'include': '#code'
+      }
+    ]
+
+  # RR 8.1, 8.2: bits denotations `2r1010`, real denotations with a point, an exponent
+  # (`e`, `E`, the backslash or the subscript ten) or both, integral denotations.  Blanks
+  # may stand between the digits.
+  'numbers':
+    'patterns': [
+      {
+        'name': 'constant.numeric.bits.algol68'
+        'match': '(?:2|4|8|10|16)[ \\t]*r[ \\t]*[0-9a-f]+(?:[ \\t]+[0-9a-f]+(?![a-z0-9_]))*'
+      }
+      {
+        'name': 'constant.numeric.real.algol68'
+        'match': '(?:[0-9]+(?:[ \\t]+[0-9]+)*[ \\t]*)?\\.[ \\t]*[0-9]+(?:[ \\t]+[0-9]+)*(?:[ \\t]*(?:[eE\\\\]|⏨)[ \\t]*[-+]?[ \\t]*[0-9]+(?:[ \\t]+[0-9]+)*)?'
+      }
+      {
+        'name': 'constant.numeric.real.algol68'
+        'match': '[0-9]+(?:[ \\t]+[0-9]+)*[ \\t]*(?:[eE\\\\]|⏨)[ \\t]*[-+]?[ \\t]*[0-9]+(?:[ \\t]+[0-9]+)*'
+      }
+      {
+        'name': 'constant.numeric.integer.algol68'
+        'match': '[0-9]+(?:[ \\t]+[0-9]+)*'
+      }
+    ]
+
+  # -------------------------------------------------------------- declarations ----
+  # The word that declares and the first name it declares (RR 4.2 to 4.5; the module
+  # facility; formal holes).  Later names of the same declaration follow commas and are
+  # not told apart from the text around them.
+  'declarations':
+    'patterns': [
+      {
+        'match': '(MODE)(?![A-Za-z0-9_])[ \\t]+([A-Z][A-Za-z0-9_]*)(?=[ \\t]*=)'
+        'captures':
+          '1':
+            'name': 'storage.type.mode.algol68'
+          '2':
+            'name': 'entity.name.type.mode.algol68'
+      }
+      {
+        'match': '(PROC)(?![A-Za-z0-9_])[ \\t]+([a-z][a-z0-9_]*(?:[ \\t]+[a-z0-9][a-z0-9_]*)*)(?=[ \\t]*(?:=|:=))'
+        'captures':
+          '1':
+            'name': 'storage.type.proc.algol68'
+          '2':
+            'name': 'entity.name.function.algol68'
+      }
+      {
+        'match': '(OP)(?![A-Za-z0-9_])[ \\t]+([A-Z][A-Za-z0-9_]*)(?=[ \\t]*=)'
+        'captures':
+          '1':
+            'name': 'storage.type.operator.algol68'
+          '2':
+            'name': 'entity.name.function.operator.algol68'
+      }
+      {
+        'match': '(OP)(?![A-Za-z0-9_])[ \\t]*((?:[-+~!?%^&]|[<>/=*])[<>/=*]?(?::=|=:)?)(?=[ \\t]*=)'
+        'captures':
+          '1':
+            'name': 'storage.type.operator.algol68'
+          '2':
+            'name': 'entity.name.function.operator.algol68'
+      }
+      {
+        'match': '(PRIO)(?![A-Za-z0-9_])[ \\t]+([A-Z][A-Za-z0-9_]*)(?=[ \\t]*=)'
+        'captures':
+          '1':
+            'name': 'storage.type.priority.algol68'
+          '2':
+            'name': 'entity.name.function.operator.algol68'
+      }
+      {
+        'match': '(PRIO)(?![A-Za-z0-9_])[ \\t]*((?:[-+~!?%^&]|[<>/=*])[<>/=*]?(?::=|=:)?)(?=[ \\t]*=)'
+        'captures':
+          '1':
+            'name': 'storage.type.priority.algol68'
+          '2':
+            'name': 'entity.name.function.operator.algol68'
+      }
+      {
+        'match': '(MODULE)(?![A-Za-z0-9_])[ \\t]+([A-Z][A-Za-z0-9_]*)'
+        'captures':
+          '1':
+            'name': 'storage.type.module.algol68'
+          '2':
+            'name': 'entity.name.module.algol68'
+      }
+      {
+        'match': '(NEST)(?![A-Za-z0-9_])[ \\t]+([A-Z][A-Za-z0-9_]*)'
+        'captures':
+          '1':
+            'name': 'keyword.other.nest.algol68'
+          '2':
+            'name': 'constant.other.language.algol68'
+      }
+    ]
+
+  # ACCESS A, PUB B [x, OLD AS NEW] before an enclosed clause or a module text: the
+  # indicants up to the clause are module indicants.
+  'access-clause':
+    'name': 'meta.access.algol68'
+    'begin': '(ACCESS)(?![A-Za-z0-9_])'
+    'beginCaptures':
+      '1':
+        'name': 'keyword.control.import.algol68'
+    'end': '(?=[^\\sA-Z,\\[#{]|(?:ACCESS|ASYNC|BEGIN|BY|CASE|DEF|DO|DPAR|FOR|FROM|IF|PAR|TO|WHILE)(?![A-Za-z0-9_]))'
+    'patterns': [
+      {
+        'include': '#comments'
+      }
+      {
+        'include': '#pragmats'
+      }
+      {
+        'name': 'storage.modifier.pub.algol68'
+        'match': 'PUB(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'meta.import-list.algol68'
+        'begin': '\\['
+        'beginCaptures':
+          '0':
+            'name': 'punctuation.section.brackets.begin.algol68'
+        'end': '\\]'
+        'endCaptures':
+          '0':
+            'name': 'punctuation.section.brackets.end.algol68'
+        'patterns': [
+          {
+            'name': 'keyword.control.as.algol68'
+            'match': 'AS(?![A-Za-z0-9_])'
+          }
+          {
+            'include': '#code'
+          }
+        ]
+      }
+      {
+        'name': 'entity.name.module.algol68'
+        'match': '[A-Z][A-Za-z0-9_]*'
+      }
+      {
+        'name': 'punctuation.separator.comma.algol68'
+        'match': ','
+      }
+    ]
+
+  # RR 5.4.4: GOTO label, GO TO label.
+  'jumps':
+    'patterns': [
+      {
+        'match': '(GOTO)(?![A-Za-z0-9_])[ \\t]*([a-z][a-z0-9_]*(?:[ \\t]+[a-z0-9][a-z0-9_]*)*)'
+        'captures':
+          '1':
+            'name': 'keyword.control.flow.algol68'
+          '2':
+            'name': 'entity.name.label.algol68'
+      }
+      {
+        'match': '(GO)[ \\t]+(TO)(?![A-Za-z0-9_])[ \\t]*([a-z][a-z0-9_]*(?:[ \\t]+[a-z0-9][a-z0-9_]*)*)'
+        'captures':
+          '1':
+            'name': 'keyword.control.flow.algol68'
+          '2':
+            'name': 'keyword.control.flow.algol68'
+          '3':
+            'name': 'entity.name.label.algol68'
+      }
+    ]
+
+  # ---------------------------------------------------------------- bold words ----
+  # RR 9.4.1: the symbols represented by bold words; RR 10.2.3: the operators of the
+  # standard prelude that are bold words; the module facility and the extension words of
+  # PA/68.  The last rules take every other bold word.
+  'bold-words':
+    'patterns': [
+      {
+        'name': 'constant.language.boolean.algol68'
+        'match': '(?:TRUE|FALSE)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'constant.language.nil.algol68'
+        'match': 'NIL(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'constant.language.empty.algol68'
+        'match': 'EMPTY(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'constant.language.skip.algol68'
+        'match': 'SKIP(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'keyword.control.block.algol68'
+        'match': '(?:BEGIN|END)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'keyword.control.conditional.algol68'
+        'match': '(?:IF|THEN|ELIF|ELSE|FI)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'keyword.control.case.algol68'
+        'match': '(?:CASE|IN|OUSE|OUT|ESAC)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'keyword.control.loop.algol68'
+        'match': '(?:FOR|FROM|BY|TO|WHILE|DO|OD)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'keyword.control.flow.algol68'
+        'match': '(?:EXIT|GOTO|GO)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'keyword.control.parallel.algol68'
+        'match': '(?:PAR|DPAR|ASYNC)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'keyword.control.module.algol68'
+        'match': '(?:DEF|FED|POSTLUDE)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.type.standard.algol68'
+        'match': '(?:INT|REAL|BOOL|CHAR|FORMAT|VOID|COMPL|BITS|BYTES|STRING|SEMA|FILE|CHANNEL)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.type.struct.algol68'
+        'match': 'STRUCT(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.type.union.algol68'
+        'match': 'UNION(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.type.proc.algol68'
+        'match': 'PROC(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.type.mode.algol68'
+        'match': 'MODE(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.type.operator.algol68'
+        'match': 'OP(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.type.priority.algol68'
+        'match': 'PRIO(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.type.module.algol68'
+        'match': 'MODULE(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.modifier.size.algol68'
+        'match': '(?:LONG|SHORT)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.modifier.reference.algol68'
+        'match': 'REF(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.modifier.flex.algol68'
+        'match': 'FLEX(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.modifier.generator.algol68'
+        'match': '(?:HEAP|LOC)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.modifier.pub.algol68'
+        'match': 'PUB(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.modifier.pure.algol68'
+        'match': 'PURE(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'storage.modifier.future.algol68'
+        'match': 'FUT(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'keyword.other.nest.algol68'
+        'match': 'NEST(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'keyword.operator.word.algol68'
+        'match': '(?:OF|AT|IS|ISNT)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'keyword.operator.word.algol68'
+        'match': '(?:ABS|AND|ARG|BIN|CONJ|DIVAB|DOWN|ELEM|ENTIER|EQ|GE|GT|IM|I|LENG|LEVEL|LE|LT|LWB|MINUSAB|MODAB|MOD|NE|NOT|ODD|OR|OVERAB|OVER|PLUSAB|PLUSTO|REPR|RE|ROUND|SHL|SHORTEN|SHR|SIGN|TIMESAB|UPB|UP)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'keyword.operator.word.algol68'
+        'match': '(?:XOR|ANDF|ANDTH|ORF|OREL)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'keyword.operator.word.algol68'
+        'match': '(?:AWAIT|SNAPSHOT)(?![A-Za-z0-9_])'
+      }
+      {
+        'name': 'support.type.algol68'
+        'match': '(?:INT(?:8|16|32|64|128)|BITS(?:8|16|32|64|128)|REAL(?:4|8|32|64|80))(?![A-Za-z0-9_])'
+      }
+      {
+        'include': '#indications'
+      }
+    ]
+  # A bold word no rule above knows is a mode indication or an operator (RR 9.4.2.2.b).
+  # Directly after an operand (a tag, a denotation) it can only be an operator; anywhere
+  # else it is taken for a mode indication.
+  'indications':
+    'patterns': [
+      {
+        'name': 'keyword.operator.word.algol68'
+        'match': '(?<=[a-z0-9_"]|[a-z0-9_"] |[a-z0-9_"]  )[A-Z][A-Za-z0-9_]*'
+      }
+      {
+        'name': 'entity.name.type.algol68'
+        'match': '[A-Z][A-Za-z0-9_]*'
+      }
+    ]
+
+  # ---------------------------------------------------- labels, tags, prelude ----
+  # RR 3.2.1.c: a label stands before a unit of a serial clause.  Only labels that begin
+  # a line or follow a go-on symbol or EXIT are taken, so that the colon of a routine
+  # text or of a bound is not mistaken for a label symbol.
+  'labels':
+    'match': '(?:^|(?<=;)|(?<=EXIT))[ \\t]*([a-z][a-z0-9_]*(?:[ \\t]+[a-z0-9][a-z0-9_]*)*)[ \\t]*(:)(?![=/]|≠)'
+    'captures':
+      '1':
+        'name': 'entity.name.label.algol68'
+      '2':
+        'name': 'punctuation.separator.label.algol68'
+
+  # RR 10.2, 10.3, 10.5.1: the identifiers of the standard prelude.  In a tag, blanks and
+  # underscores stand for nothing: `max int`, `max_int` and `maxint` are one identifier.
+  # A routine with parameters is taken only where it is called.
+  'standard-prelude':
+    'patterns': [
+      {
+        'name': 'support.function.math.algol68'
+        'match': '(?<![A-Za-z0-9_])(?:(?:long|short)[ \\t_]*)*(?:arccos|arcsin|arctan|cos|exp|ln|next[ \\t_]*random|sin|sqrt|tan)(?=[ \\t]*\\()'
+      }
+      {
+        'name': 'support.function.conversion.algol68'
+        'match': '(?<![A-Za-z0-9_])(?:whole|fixed|float|char[ \\t_]*in[ \\t_]*string|string[ \\t_]*in[ \\t_]*string|(?:(?:long|short)[ \\t_]*)*(?:bits|bytes)[ \\t_]*pack)(?=[ \\t]*\\()'
+      }
+      {
+        'name': 'support.function.transput.algol68'
+        'match': '(?<![A-Za-z0-9_])(?:printf|print|writef|write[ \\t_]*bin|write|readf|read[ \\t_]*bin|read|putf|put[ \\t_]*bin|put[ \\t_]*possible|put|getf|get[ \\t_]*bin|get[ \\t_]*possible|get)(?=[ \\t]*\\()'
+      }
+      {
+        'name': 'support.function.transput.algol68'
+        'match': '(?<![A-Za-z0-9_])(?:open|establish|create|associate|close|lock|scratch|set[ \\t_]*char[ \\t_]*number|set[ \\t_]*possible|set|reset[ \\t_]*possible|reset|char[ \\t_]*number|line[ \\t_]*number|page[ \\t_]*number|make[ \\t_]*term|make[ \\t_]*conv|stand[ \\t_]*conv|reidf[ \\t_]*possible|reidf|bin[ \\t_]*possible|estab[ \\t_]*possible|compressible|chan)(?=[ \\t]*\\()'
+      }
+      {
+        'name': 'support.function.transput.algol68'
+        'match': '(?<![A-Za-z0-9_])on[ \\t_]*(?:logical[ \\t_]*file[ \\t_]*end|physical[ \\t_]*file[ \\t_]*end|page[ \\t_]*end|line[ \\t_]*end|format[ \\t_]*end|value[ \\t_]*error|char[ \\t_]*error)(?=[ \\t]*\\()'
+      }
+      {
+        'name': 'support.function.transput.algol68'
+        'match': '(?<![A-Za-z0-9_])(?:new[ \\t_]*line|new[ \\t_]*page|back[ \\t_]*space|space)(?![ \\t]*[a-z0-9_])'
+      }
+      {
+        'name': 'support.function.math.algol68'
+        'match': '(?<![A-Za-z0-9_])(?:(?:long|short)[ \\t_]*)*random(?![ \\t]*[a-z0-9_])'
+      }
+      {
+        'name': 'support.constant.algol68'
+        'match': '(?<![A-Za-z0-9_])(?:(?:long|short)[ \\t_]*)*(?:max[ \\t_]*int|max[ \\t_]*real|small[ \\t_]*real|pi|int[ \\t_]*width|real[ \\t_]*width|exp[ \\t_]*width|bits[ \\t_]*width|bytes[ \\t_]*width)(?![ \\t]*[a-z0-9_])'
+      }
+      {
+        'name': 'support.constant.algol68'
+        'match': '(?<![A-Za-z0-9_])(?:(?:int|real|bits|bytes)[ \\t_]*(?:lengths|shorths)|max[ \\t_]*abs[ \\t_]*char|null[ \\t_]*character|blank|flip|flop|error[ \\t_]*char|stand[ \\t_]*(?:in|out|back)[ \\t_]*channel)(?![ \\t]*[a-z0-9_])'
+      }
+      {
+        'name': 'support.variable.algol68'
+        'match': '(?<![A-Za-z0-9_])(?:stand[ \\t_]*(?:in|out|back)|(?:(?:long|short)[ \\t_]*)*last[ \\t_]*random)(?![ \\t]*[a-z0-9_])'
+      }
+    ]
+
+  # A tag (RR 9.4.2.2.a) carries no scope; the rule takes it whole, blanks included, so
+  # that no other rule starts inside it.
+  'tags':
+    'match': '[a-z][a-z0-9_]*(?:[ \\t]+[a-z0-9][a-z0-9_]*)*'
+
+  # ----------------------------------------------------- operators and symbols ----
+  # RR 9.4.2.1: an operator is a monad or a nomad, then at most one nomad, then at most
+  # one of := and =: .  The identity relators, the becomes symbol and the equals symbol
+  # are symbols of their own (RR 9.4.1.c, f).
+  'operators':
+    'patterns': [
+      {
+        'name': 'keyword.operator.identity.algol68'
+        'match': ':=:|:/=:|:≠:'
+      }
+      {
+        'name': 'keyword.operator.assignment.algol68'
+        'match': ':='
+      }
+      {
+        'name': 'keyword.operator.assignment.compound.algol68'
+        'match': '(?:[-+~!?%^&]|[<>/=*])[<>/=*]?(?::=|=:)'
+      }
+      {
+        'name': 'keyword.operator.comparison.algol68'
+        'match': '<=|>=|/='
+      }
+      {
+        'name': 'keyword.operator.arithmetic.algol68'
+        'match': '\\*\\*|%\\*|\\+\\*'
+      }
+      {
+        'name': 'keyword.operator.other.algol68'
+        'match': '(?:[-+~!?%^&]|[<>/=*])[<>/=*]'
+      }
+      {
+        'name': 'keyword.operator.arithmetic.algol68'
+        'match': '[-+*/%^]'
+      }
+      {
+        'name': 'keyword.operator.comparison.algol68'
+        'match': '[<>]'
+      }
+      {
+        'name': 'keyword.operator.equals.algol68'
+        'match': '='
+      }
+      {
+        'name': 'keyword.operator.logical.algol68'
+        'match': '[&~]'
+      }
+      {
+        'name': 'keyword.operator.other.algol68'
+        'match': '[!?]'
+      }
+      {
+        'name': 'keyword.operator.comparison.algol68'
+        'match': '≤|≥|≠'
+      }
+      {
+        'name': 'keyword.operator.arithmetic.algol68'
+        'match': '×|÷|↑|↓|⌊|⌈|⊥'
+      }
+      {
+        'name': 'keyword.operator.logical.algol68'
+        'match': '∧|∨|¬'
+      }
+      {
+        'name': 'keyword.control.choice.brief.algol68'
+        'match': '\\|:?'
+      }
+      {
+        'name': 'keyword.operator.at.algol68'
+        'match': '@'
+      }
+    ]
+  'punctuation':
+    'patterns': [
+      {
+        'name': 'punctuation.section.parens.begin.algol68'
+        'match': '\\('
+      }
+      {
+        'name': 'punctuation.section.parens.end.algol68'
+        'match': '\\)'
+      }
+      {
+        'name': 'punctuation.section.brackets.begin.algol68'
+        'match': '\\['
+      }
+      {
+        'name': 'punctuation.section.brackets.end.algol68'
+        'match': '\\]'
+      }
+      {
+        'name': 'punctuation.separator.comma.algol68'
+        'match': ','
+      }
+      {
+        'name': 'punctuation.separator.semicolon.algol68'
+        'match': ';'
+      }
+      {
+        'name': 'punctuation.separator.colon.algol68'
+        'match': ':'
+      }
+    ]

@@ -1,0 +1,30 @@
+# ALGOL 68 in the fenced code blocks of Markdown documents: this grammar has no name and no
+# file types; its one rule is injected into the Markdown grammar of Atom and Pulsar
+# (language-gfm, scope source.gfm), which knows a fixed list of languages only.
+#
+#     ```algol68
+#     BEGIN print (("hello", newline)) END
+#     ```
+#
+# The info string is algol68, a68 or pa68, in letters of either case.
+'scopeName': 'source.gfm.algol68'
+'injectionSelector': 'L:source.gfm - (markup.code | markup.raw)'
+'patterns': [
+  {
+    'name': 'markup.code.algol68.gfm'
+    'begin': '^\\s*(`{3,}|~{3,})\\s*(?i:(algol68|a68|pa68))\\s*$'
+    'beginCaptures':
+      '0':
+        'name': 'support.gfm'
+    'end': '^\\s*\\1\\s*$'
+    'endCaptures':
+      '0':
+        'name': 'support.gfm'
+    'contentName': 'source.embedded.algol68'
+    'patterns': [
+      {
+        'include': 'source.algol68'
+      }
+    ]
+  }
+]

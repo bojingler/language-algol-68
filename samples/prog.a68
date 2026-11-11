@@ -1,0 +1,9 @@
+COMMENT modules found by their names (X22, modules 6): SHAPES lies beside this program and accesses UNITS, which lies
+  there too; PARALLEL is the library's, beside the prelude.  No option names any of them.  A module is activated
+  once, before the first unit that accesses it: UNITS before SHAPES, although SHAPES is found first. COMMENT
+ACCESS SHAPES, PARALLEL
+BEGIN
+  [] REAL a = (1.0, 2.0, 3.0);
+  print ((fixed (area (2.0), 0, 1), " ", fixed (sum_real (a), 0, 1), new_line));
+  ACCESS UNITS (print ((fixed (scale, 0, 1), new_line)))
+END

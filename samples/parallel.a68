@@ -1,0 +1,137 @@
+COMMENT PARALLEL - deterministic parallel algorithms (Foundation 9.4, 5.12.3 item 7): map, reduce, scan and sort over rows,
+  built on DPAR and DPAR FOR with association trees that depend on the number of elements alone.  The tree of a
+  reduction or a scan splits the index range at its middle, recursively, down to single elements; below parallel_leaf
+  elements the halves are elaborated serially in the same shape, so the result does not depend on parallel_leaf, on
+  the worker count or on timing.  A routine parameter must be a PURE PROC.  Failures: the operations' own classes (overflow under the
+  check, real exceptions); an empty row reduces to the unit given. COMMENT
+
+MODULE PARALLEL =
+DEF
+
+  PURE PROC at_real = ([] REAL r, INT lwb) [] REAL: r[@ lwb];   { the bounds of the operand for a DPAR FOR result }
+  PURE PROC at_int = ([] INT r, INT lwb) [] INT: r[@ lwb];
+
+  PUB INT parallel_leaf = 1024;   { the tree continues serially below this many elements; a performance parameter only }
+
+  { ---- map ---- }
+  PUB PURE PROC map_real = ([] REAL a, PURE PROC (REAL) REAL f) [] REAL: at_real (DPAR FOR i FROM LWB a TO UPB a DO f (a[i]) OD, LWB a);
+  PUB PURE PROC map_int = ([] INT a, PURE PROC (INT) INT f) [] INT: at_int (DPAR FOR i FROM LWB a TO UPB a DO f (a[i]) OD, LWB a);
+  PUB PURE PROC map_real_int = ([] REAL a, PURE PROC (REAL) INT f) [] INT: at_int (DPAR FOR i FROM LWB a TO UPB a DO f (a[i]) OD, LWB a);
+
+  { ---- reduce: f over a balanced binary tree of the index range ----
+    The tree of n elements has the first (n + 1) OVER 2 of them on the left; it depends on the number of elements alone.
+    The trees of one to four elements are written out, which is the same tree without a call of the routine for every
+    element (the cost of the reduction was those calls) }
+  PURE PROC tree_real = ([] REAL a, INT lo, hi, PURE PROC (REAL, REAL) REAL f) REAL:
+    CASE hi - lo + 1 IN
+      a[lo],
+      f (a[lo], a[lo + 1]),
+      f (f (a[lo], a[lo + 1]), a[lo + 2]),
+      f (f (a[lo], a[lo + 1]), f (a[lo + 2], a[lo + 3]))
+    OUT INT mid = lo + (hi - lo) OVER 2;
+        IF hi - lo + 1 <= parallel_leaf THEN f (tree_real (a, lo, mid, f), tree_real (a, mid + 1, hi, f))
+        ELSE [] REAL halves = DPAR (tree_real (a, lo, mid, f), tree_real (a, mid + 1, hi, f)); f (halves[1], halves[2])
+        FI
+    ESAC;
+  PURE PROC tree_int = ([] INT a, INT lo, hi, PURE PROC (INT, INT) INT f) INT:
+    CASE hi - lo + 1 IN
+      a[lo],
+      f (a[lo], a[lo + 1]),
+      f (f (a[lo], a[lo + 1]), a[lo + 2]),
+      f (f (a[lo], a[lo + 1]), f (a[lo + 2], a[lo + 3]))
+    OUT INT mid = lo + (hi - lo) OVER 2;
+        IF hi - lo + 1 <= parallel_leaf THEN f (tree_int (a, lo, mid, f), tree_int (a, mid + 1, hi, f))
+        ELSE [] INT halves = DPAR (tree_int (a, lo, mid, f), tree_int (a, mid + 1, hi, f)); f (halves[1], halves[2])
+        FI
+    ESAC;
+  { the sums: the same tree with the operator in place }
+  PURE PROC sum_tree_real = ([] REAL a, INT lo, hi) REAL:
+    CASE hi - lo + 1 IN
+      a[lo],
+      a[lo] + a[lo + 1],
+      (a[lo] + a[lo + 1]) + a[lo + 2],
+      (a[lo] + a[lo + 1]) + (a[lo + 2] + a[lo + 3])
+    OUT INT mid = lo + (hi - lo) OVER 2;
+        IF hi - lo + 1 <= parallel_leaf THEN sum_tree_real (a, lo, mid) + sum_tree_real (a, mid + 1, hi)
+        ELSE [] REAL halves = DPAR (sum_tree_real (a, lo, mid), sum_tree_real (a, mid + 1, hi)); halves[1] + halves[2]
+        FI
+    ESAC;
+  PURE PROC sum_tree_int = ([] INT a, INT lo, hi) INT:
+    CASE hi - lo + 1 IN
+      a[lo],
+      a[lo] + a[lo + 1],
+      (a[lo] + a[lo + 1]) + a[lo + 2],
+      (a[lo] + a[lo + 1]) + (a[lo + 2] + a[lo + 3])
+    OUT INT mid = lo + (hi - lo) OVER 2;
+        IF hi - lo + 1 <= parallel_leaf THEN sum_tree_int (a, lo, mid) + sum_tree_int (a, mid + 1, hi)
+        ELSE [] INT halves = DPAR (sum_tree_int (a, lo, mid), sum_tree_int (a, mid + 1, hi)); halves[1] + halves[2]
+        FI
+    ESAC;
+  PUB PURE PROC reduce_real = ([] REAL a, PURE PROC (REAL, REAL) REAL f, REAL unit) REAL: (UPB a < LWB a | unit | tree_real (a, LWB a, UPB a, f));
+  PUB PURE PROC reduce_int = ([] INT a, PURE PROC (INT, INT) INT f, INT unit) INT: (UPB a < LWB a | unit | tree_int (a, LWB a, UPB a, f));
+  PUB PURE PROC real_plus = (REAL x, y) REAL: x + y;
+  PUB PURE PROC real_times = (REAL x, y) REAL: x * y;
+  PUB PURE PROC real_max = (REAL x, y) REAL: (x > y | x | y);
+  PUB PURE PROC real_min = (REAL x, y) REAL: (x < y | x | y);
+  PUB PURE PROC int_plus = (INT x, y) INT: x + y;
+  PUB PURE PROC int_max = (INT x, y) INT: (x > y | x | y);
+  PUB PURE PROC int_min = (INT x, y) INT: (x < y | x | y);
+  PUB PURE PROC sum_real = ([] REAL a) REAL: (UPB a < LWB a | 0.0 | sum_tree_real (a, LWB a, UPB a));
+  PUB PURE PROC sum_int = ([] INT a) INT: (UPB a < LWB a | 0 | sum_tree_int (a, LWB a, UPB a));
+
+  { ---- scan: the inclusive prefixes of f, the same tree: the prefixes of each half, the right ones combined with the left total ---- }
+  PURE PROC scan_tree = ([] REAL a, INT lo, hi, PURE PROC (REAL, REAL) REAL f) [] REAL:
+    IF lo = hi THEN [1 : 1] REAL one; one[1] := a[lo]; one
+    ELSE INT mid = lo + (hi - lo) OVER 2; INT n = hi - lo + 1, m = mid - lo + 1;
+         STRUCT ([] REAL left, right) halves =
+           (n <= parallel_leaf | (scan_tree (a, lo, mid, f), scan_tree (a, mid + 1, hi, f)) | DPAR (scan_tree (a, lo, mid, f), scan_tree (a, mid + 1, hi, f)));
+         REAL total = (left OF halves)[m];
+         [1 : n] REAL out; out[1 : m] := left OF halves;
+         [] REAL right = right OF halves;
+         FOR i TO n - m DO out[m + i] := f (total, right[i]) OD;
+         out
+    FI;
+  PUB PURE PROC scan_real = ([] REAL a, PURE PROC (REAL, REAL) REAL f) [] REAL:
+    IF UPB a < LWB a THEN a ELSE at_real (scan_tree (a, LWB a, UPB a, f), LWB a) FI;
+  PUB PURE PROC prefix_sums = ([] REAL a) [] REAL: scan_real (a, real_plus);
+
+  { ---- sort: merge sort, the halves in parallel, a serial merge; stable ---- }
+  PURE PROC merge_real = ([] REAL a, b) [] REAL:
+    BEGIN INT n = UPB a - LWB a + 1 + UPB b - LWB b + 1; [1 : n] REAL out; INT i := LWB a, j := LWB b;
+          FOR k TO n DO
+            IF j > UPB b THEN out[k] := a[i]; i +:= 1
+            ELIF i > UPB a THEN out[k] := b[j]; j +:= 1
+            ELIF b[j] < a[i] THEN out[k] := b[j]; j +:= 1
+            ELSE out[k] := a[i]; i +:= 1 FI
+          OD;
+          out
+    END;
+  PURE PROC sort_tree_real = ([] REAL a, INT lo, hi) [] REAL:
+    IF lo >= hi THEN a[lo : hi]
+    ELSE INT mid = lo + (hi - lo) OVER 2;
+         STRUCT ([] REAL left, right) halves =
+           (hi - lo + 1 <= parallel_leaf | (sort_tree_real (a, lo, mid), sort_tree_real (a, mid + 1, hi)) | DPAR (sort_tree_real (a, lo, mid), sort_tree_real (a, mid + 1, hi)));
+         merge_real (left OF halves, right OF halves)
+    FI;
+  PUB PURE PROC sort_real = ([] REAL a) [] REAL: (UPB a < LWB a | a | at_real (sort_tree_real (a, LWB a, UPB a), LWB a));
+  PURE PROC merge_int = ([] INT a, b) [] INT:
+    BEGIN INT n = UPB a - LWB a + 1 + UPB b - LWB b + 1; [1 : n] INT out; INT i := LWB a, j := LWB b;
+          FOR k TO n DO
+            IF j > UPB b THEN out[k] := a[i]; i +:= 1
+            ELIF i > UPB a THEN out[k] := b[j]; j +:= 1
+            ELIF b[j] < a[i] THEN out[k] := b[j]; j +:= 1
+            ELSE out[k] := a[i]; i +:= 1 FI
+          OD;
+          out
+    END;
+  PURE PROC sort_tree_int = ([] INT a, INT lo, hi) [] INT:
+    IF lo >= hi THEN a[lo : hi]
+    ELSE INT mid = lo + (hi - lo) OVER 2;
+         STRUCT ([] INT left, right) halves =
+           (hi - lo + 1 <= parallel_leaf | (sort_tree_int (a, lo, mid), sort_tree_int (a, mid + 1, hi)) | DPAR (sort_tree_int (a, lo, mid), sort_tree_int (a, mid + 1, hi)));
+         merge_int (left OF halves, right OF halves)
+    FI;
+  PUB PURE PROC sort_int = ([] INT a) [] INT: (UPB a < LWB a | a | at_int (sort_tree_int (a, LWB a, UPB a), LWB a));
+
+  SKIP
+FED

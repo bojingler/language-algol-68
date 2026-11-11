@@ -1,0 +1,10 @@
+COMMENT two constituents alternating through a pair of semaphores for many rounds, with a nested clause inside one of
+  them: fibers switch back and forth at every halt COMMENT
+BEGIN
+  SEMA ping = LEVEL 1, pong = LEVEL 0; INT count := 0; STRING trace := "";
+  PAR ((FOR i TO 5 DO DOWN ping; trace +:= "a"; count +:= 1; UP pong OD),
+       (FOR i TO 5 DO DOWN pong; trace +:= "b"; count +:= 10;
+                       IF i = 3 THEN SEMA inner = LEVEL 0; PAR ((DOWN inner; trace +:= "d"), (trace +:= "c"; UP inner)) FI;
+                       UP ping OD));
+  print ((trace, count, newline))
+END

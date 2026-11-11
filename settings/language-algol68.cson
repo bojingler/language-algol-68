@@ -1,0 +1,22 @@
+# Editor settings for ALGOL 68 sources.
+#
+# Comments: the Report's comment symbols do not nest, so a toggled line must not hold the
+# symbol itself.  For PA/68 and GNU Algol 68 sources the brace comment is the safer choice
+# (it nests and passes over string denotations); README.md shows how to select it.
+#
+# Indentation: a line that opens a clause without closing it indents the next one; a line
+# that begins with a word closing or continuing a clause goes back one level.
+'.source.algol68':
+  'editor':
+    'commentStart': '# '
+    'commentEnd': ' #'
+    'increaseIndentPattern': '\\b(?:BEGIN|IF|THEN|ELIF|ELSE|CASE|IN|OUSE|OUT|FOR|WHILE|DO|DEF|POSTLUDE)\\b(?!.*\\b(?:END|FI|ESAC|OD|FED)\\b)|[(\\[][ \\t]*$'
+    'decreaseIndentPattern': '^[ \\t]*(?:(?:END|FI|ESAC|OD|FED|THEN|ELIF|ELSE|IN|OUSE|OUT|DO|POSTLUDE)\\b|[)\\]])'
+    'foldEndPattern': '^[ \\t]*(?:(?:END|FI|ESAC|OD|FED)\\b|[)\\]])'
+  'bracket-matcher':
+    'autocompleteCharacters': [
+      '()'
+      '[]'
+      '{}'
+      '""'
+    ]

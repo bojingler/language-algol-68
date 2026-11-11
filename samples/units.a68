@@ -1,0 +1,6 @@
+COMMENT a module of the test prog.a68, accessed by the module SHAPES and by the program COMMENT
+MODULE UNITS =
+DEF
+  PUB REAL scale = 3.0;
+  print (("units ready", new_line))
+FED

@@ -1,0 +1,306 @@
+# The Markdown source form of PA/68: a document whose fenced code blocks are the program
+# and whose prose is comment (a file `*.a68.md`, or any file whose first line is three
+# backquotes and the word markdown).
+#
+#   * A fence is a line of up to three blanks and three backquotes.  A block whose info
+#     string is empty or begins with a68, algol68 or pa68 is program text; it ends at the
+#     next fence line.  A block in another language is comment.
+#   * Inside program text the word between two pairs of asterisks is a bold word:
+#     **begin** is BEGIN.  The opening pair follows no letter, digit or closing bracket and
+#     the closing pair follows the word at once; every other ** is the operator.
+#   * Everything else in a block is the grammar source.algol68.
+#   * Prose is given to the Markdown grammar of the editor (source.gfm) where there is one.
+'scopeName': 'text.markdown.algol68'
+'name': 'ALGOL 68 (Markdown)'
+'fileTypes': [
+  'a68.md'
+]
+'firstLineMatch': '^```markdown[ \\t]*$'
+'maxTokensPerLine': 1000
+'limitLineLength': false
+'patterns': [
+  {
+    'name': 'meta.marker.markdown.algol68'
+    'match': '\\A(```)(markdown)[ \\t]*$'
+    'captures':
+      '1':
+        'name': 'punctuation.definition.fence.algol68'
+      '2':
+        'name': 'keyword.other.marker.algol68'
+  }
+  {
+    'name': 'markup.code.algol68'
+    'begin': '^ {0,3}(```)[ \\t]*(?:(a68|algol68|pa68)(?![A-Za-z0-9])|(?![A-Za-z0-9])).*$'
+    'beginCaptures':
+      '1':
+        'name': 'punctuation.definition.fence.begin.algol68'
+      '2':
+        'name': 'entity.name.tag.language.algol68'
+    'end': '^ {0,3}(```).*$'
+    'endCaptures':
+      '1':
+        'name': 'punctuation.definition.fence.end.algol68'
+    'contentName': 'source.algol68'
+    'patterns': [
+      {
+        'include': '#star-comments'
+      }
+      {
+        'include': '#star-declarations'
+      }
+      {
+        'include': '#star-words'
+      }
+      {
+        'include': 'source.algol68'
+      }
+    ]
+  }
+  {
+    'name': 'markup.raw.block.algol68'
+    'begin': '^ {0,3}(```)[ \\t]*([A-Za-z0-9]+).*$'
+    'beginCaptures':
+      '1':
+        'name': 'punctuation.definition.fence.begin.algol68'
+      '2':
+        'name': 'entity.name.tag.language.algol68'
+    'end': '^ {0,3}(```).*$'
+    'endCaptures':
+      '1':
+        'name': 'punctuation.definition.fence.end.algol68'
+  }
+  {
+    'include': 'source.gfm'
+  }
+]
+'repository':
+  # **co** ... **co**, **comment** ... **comment**, **pr** ... **pr**, **pragmat** ... **pragmat**:
+  # a comment or pragmat opened by a word in asterisks is closed by the same word, in
+  # asterisks or in capitals.
+  'star-comments':
+    'patterns': [
+      {
+        'name': 'comment.block.bold.algol68'
+        'begin': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:comment)\\*\\*'
+        'beginCaptures':
+          '0':
+            'name': 'punctuation.definition.comment.begin.algol68'
+        'end': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:comment)\\*\\*|(?<![A-Za-z0-9_])COMMENT(?![A-Za-z0-9_])'
+        'endCaptures':
+          '0':
+            'name': 'punctuation.definition.comment.end.algol68'
+      }
+      {
+        'name': 'comment.block.bold.algol68'
+        'begin': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:co)\\*\\*'
+        'beginCaptures':
+          '0':
+            'name': 'punctuation.definition.comment.begin.algol68'
+        'end': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:co)\\*\\*|(?<![A-Za-z0-9_])CO(?![A-Za-z0-9_])'
+        'endCaptures':
+          '0':
+            'name': 'punctuation.definition.comment.end.algol68'
+      }
+      {
+        'name': 'meta.preprocessor.pragmat.algol68'
+        'begin': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:pragmat)\\*\\*'
+        'beginCaptures':
+          '0':
+            'name': 'keyword.control.directive.pragmat.algol68'
+        'end': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:pragmat)\\*\\*|(?<![A-Za-z0-9_])PRAGMAT(?![A-Za-z0-9_])'
+        'endCaptures':
+          '0':
+            'name': 'keyword.control.directive.pragmat.algol68'
+      }
+      {
+        'name': 'meta.preprocessor.pragmat.algol68'
+        'begin': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:pr)\\*\\*'
+        'beginCaptures':
+          '0':
+            'name': 'keyword.control.directive.pragmat.algol68'
+        'end': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:pr)\\*\\*|(?<![A-Za-z0-9_])PR(?![A-Za-z0-9_])'
+        'endCaptures':
+          '0':
+            'name': 'keyword.control.directive.pragmat.algol68'
+      }
+    ]
+  # the word that declares, in asterisks, and the name it declares
+  'star-declarations':
+    'patterns': [
+      {
+        'match': '(?<![A-Za-z0-9)\\]])(\\*\\*(?i:mode)\\*\\*)[ \\t]+([A-Z][A-Za-z0-9_]*)(?=[ \\t]*=)'
+        'captures':
+          '1':
+            'name': 'storage.type.mode.algol68'
+          '2':
+            'name': 'entity.name.type.mode.algol68'
+      }
+      {
+        'match': '(?<![A-Za-z0-9)\\]])(\\*\\*(?i:proc)\\*\\*)[ \\t]+([a-z][a-z0-9_]*(?:[ \\t]+[a-z0-9][a-z0-9_]*)*)(?=[ \\t]*(?:=|:=))'
+        'captures':
+          '1':
+            'name': 'storage.type.proc.algol68'
+          '2':
+            'name': 'entity.name.function.algol68'
+      }
+      {
+        'match': '(?<![A-Za-z0-9)\\]])(\\*\\*(?i:op)\\*\\*)[ \\t]+([A-Z][A-Za-z0-9_]*)(?=[ \\t]*=)'
+        'captures':
+          '1':
+            'name': 'storage.type.operator.algol68'
+          '2':
+            'name': 'entity.name.function.operator.algol68'
+      }
+      {
+        'match': '(?<![A-Za-z0-9)\\]])(\\*\\*(?i:op)\\*\\*)[ \\t]*((?:[-+~!?%^&]|[<>/=*])[<>/=*]?(?::=|=:)?)(?=[ \\t]*=)'
+        'captures':
+          '1':
+            'name': 'storage.type.operator.algol68'
+          '2':
+            'name': 'entity.name.function.operator.algol68'
+      }
+      {
+        'match': '(?<![A-Za-z0-9)\\]])(\\*\\*(?i:prio)\\*\\*)[ \\t]+([A-Z][A-Za-z0-9_]*)(?=[ \\t]*=)'
+        'captures':
+          '1':
+            'name': 'storage.type.priority.algol68'
+          '2':
+            'name': 'entity.name.function.operator.algol68'
+      }
+      {
+        'match': '(?<![A-Za-z0-9)\\]])(\\*\\*(?i:module)\\*\\*)[ \\t]+([A-Z][A-Za-z0-9_]*)'
+        'captures':
+          '1':
+            'name': 'storage.type.module.algol68'
+          '2':
+            'name': 'entity.name.module.algol68'
+      }
+    ]
+  # the bold words of source.algol68, written in asterisks; the letters are of either case
+  'star-words':
+    'patterns': [
+      {
+        'name': 'constant.language.boolean.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:true|false)\\*\\*'
+      }
+      {
+        'name': 'constant.language.nil.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:nil)\\*\\*'
+      }
+      {
+        'name': 'constant.language.empty.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:empty)\\*\\*'
+      }
+      {
+        'name': 'constant.language.skip.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:skip)\\*\\*'
+      }
+      {
+        'name': 'keyword.control.block.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:begin|end)\\*\\*'
+      }
+      {
+        'name': 'keyword.control.conditional.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:if|then|elif|else|fi)\\*\\*'
+      }
+      {
+        'name': 'keyword.control.case.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:case|in|ouse|out|esac)\\*\\*'
+      }
+      {
+        'name': 'keyword.control.loop.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:for|from|by|to|while|do|od)\\*\\*'
+      }
+      {
+        'name': 'keyword.control.flow.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:exit|goto|go)\\*\\*'
+      }
+      {
+        'name': 'keyword.control.parallel.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:par|dpar|async)\\*\\*'
+      }
+      {
+        'name': 'keyword.control.module.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:def|fed|postlude)\\*\\*'
+      }
+      {
+        'name': 'keyword.control.import.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:access)\\*\\*'
+      }
+      {
+        'name': 'storage.type.standard.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:int|real|bool|char|format|void|compl|bits|bytes|string|sema|file|channel)\\*\\*'
+      }
+      {
+        'name': 'storage.type.struct.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:struct)\\*\\*'
+      }
+      {
+        'name': 'storage.type.union.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:union)\\*\\*'
+      }
+      {
+        'name': 'storage.type.proc.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:proc)\\*\\*'
+      }
+      {
+        'name': 'storage.type.mode.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:mode)\\*\\*'
+      }
+      {
+        'name': 'storage.type.operator.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:op)\\*\\*'
+      }
+      {
+        'name': 'storage.type.priority.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:prio)\\*\\*'
+      }
+      {
+        'name': 'storage.type.module.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:module)\\*\\*'
+      }
+      {
+        'name': 'storage.modifier.size.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:long|short)\\*\\*'
+      }
+      {
+        'name': 'storage.modifier.reference.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:ref)\\*\\*'
+      }
+      {
+        'name': 'storage.modifier.flex.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:flex)\\*\\*'
+      }
+      {
+        'name': 'storage.modifier.generator.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:heap|loc)\\*\\*'
+      }
+      {
+        'name': 'storage.modifier.pub.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:pub)\\*\\*'
+      }
+      {
+        'name': 'storage.modifier.pure.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:pure)\\*\\*'
+      }
+      {
+        'name': 'storage.modifier.future.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:fut)\\*\\*'
+      }
+      {
+        'name': 'keyword.other.nest.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:nest)\\*\\*'
+      }
+      {
+        'name': 'keyword.operator.word.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:of|at|is|isnt)\\*\\*'
+      }
+      {
+        'name': 'keyword.operator.word.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*(?i:abs|and|arg|bin|conj|divab|down|elem|entier|eq|ge|gt|im|i|leng|level|le|lt|lwb|minusab|modab|mod|ne|not|odd|or|overab|over|plusab|plusto|repr|re|round|shl|shorten|shr|sign|timesab|upb|up|xor|andf|andth|orf|orel|await|snapshot)\\*\\*'
+      }
+      {
+        'name': 'entity.name.type.algol68'
+        'match': '(?<![A-Za-z0-9)\\]])\\*\\*[A-Za-z][A-Za-z0-9_]*\\*\\*'
+      }
+    ]

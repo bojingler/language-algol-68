@@ -1,0 +1,28 @@
+{ The primes below a limit by the sieve of Eratosthenes, written the way GNU Algol 68
+  reads by default (SUPPER stropping): reserved words in small letters, mode and
+  operator indications with a capital first letter, tags in small letters. }
+begin
+  int limit = 60;
+  [2 : limit] bool composite;
+  for i from 2 to limit do composite[i] := false od;
+
+  proc strike_multiples = (int p) void:
+    for k from p * p by p to limit do composite[k] := true od;
+
+  for p from 2 to limit do
+    if NOT composite[p] then strike_multiples (p) fi
+  od;
+
+  { the primes in rows of eight, and how many there are }
+  int found := 0;
+  string row := "";
+  for p from 2 to limit do
+    if NOT composite[p] then
+      found +:= 1;
+      row +:= whole (p, 4);
+      if found MOD 8 = 0 then puts (row + "'n"); row := "" fi
+    fi
+  od;
+  (row /= "" | puts (row + "'n"));
+  puts (whole (found, 0) + " primes below " + whole (limit, 0) + "'n")
+end

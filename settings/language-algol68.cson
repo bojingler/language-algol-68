@@ -20,3 +20,13 @@
       '{}'
       '""'
     ]
+# In a source with reserved words in small letters (the grammar says so in the scope of every
+# token after its decision) the same patterns hold for the small-letter words, and the comment
+# is GNU Algol 68's, which is the only one that stropping has.
+'.source.algol68 .meta.stropping.supper.algol68':
+  'editor':
+    'commentStart': '{ '
+    'commentEnd': ' }'
+    'increaseIndentPattern': '(?<![A-Za-z0-9_])(?:begin|if|then|elif|else|case|in|ouse|out|for|while|do|def|postlude)(?![A-Za-z0-9_])(?!.*(?<![A-Za-z0-9_])(?:end|fi|esac|od|fed)(?![A-Za-z0-9_]))|[(\\[][ \\t]*$'
+    'decreaseIndentPattern': '^[ \\t]*(?:(?:end|fi|esac|od|fed|then|elif|else|in|ouse|out|do|postlude)(?![A-Za-z0-9_])|[)\\]])'
+    'foldEndPattern': '^[ \\t]*(?:(?:end|fi|esac|od|fed)(?![A-Za-z0-9_])|[)\\]])'

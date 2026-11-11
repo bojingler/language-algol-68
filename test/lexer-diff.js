@@ -3,10 +3,11 @@
 //
 //   node test/lexer-diff.js --lexer PATH/pa68lex [--engine NAME] [--option OPT]... [--verbose] FILE.a68 ...
 //
-// --option gives the lexer an option for every file (--gnu for the GNU conveniences); the lexer's
-// options in a file NAME.flags beside NAME.a68 (the convention of the PA/68 tests) are added for that
-// file.  A file in another stropping regime (--point, --supper) and a file in which the lexer finds
-// errors are passed over.
+// --option gives the lexer an option for every file (--gnu for the GNU conveniences, --supper for
+// sources with reserved words in small letters); the lexer's options in a file NAME.flags beside
+// NAME.a68 (the convention of the PA/68 tests) are added for that file.  With --supper the grammar
+// must have decided for small letters, or the file is reported.  A file in point stropping and a
+// file in which the lexer finds errors are passed over.
 //
 // pa68lex writes one line per token: "line:column kind |source slice| =symbol"; comments and
 // blanks are no tokens.  For every file the grammar's tokens must agree with the lexer's:
@@ -63,6 +64,7 @@ const symbol = {
   ':=': ['keyword.operator.assignment'], '=': ['keyword.operator.equals', 'entity.name.function.operator'],
   ':=:': ['keyword.operator.identity'], ':/=:': ['keyword.operator.identity'],
   '@': ['keyword.operator.at'], '|': ['keyword.control.choice.brief'], '|:': ['keyword.control.choice.brief'],
+  "'": ['keyword.operator.word'],   // GNU's apostrophe for OF
   operator: ['keyword.operator', 'entity.name.function.operator'],
   '$open': ['punctuation.definition.string.begin'], '$close': ['punctuation.definition.string.end'],
   '$letter': ['constant.other.placeholder.format'], '$digits': ['constant.numeric.replicator'],
@@ -118,14 +120,17 @@ function own (scopes) {
   return scopes.slice(last + 1)
 }
 
+let smallLetters = false   // the file in hand is lexed with --supper: a reserved word is its small-letter spelling
+
 function expectation (t) {
   if (t.kind in denotation) return { all: [denotation[t.kind]] }
   if (t.kind === 'tag') return { one: tag, plain: true }
-  if (t.kind === 'boldtag') return { one: indication, whole: true }
+  // in a small-letter source GNU's sizes and short-circuit words are bold words for the lexer
+  if (t.kind === 'boldtag') return { one: smallLetters ? indication.concat(['storage.modifier', 'storage.type', 'keyword.control']) : indication, whole: true }
   if (t.kind in symbol) return { one: symbol[t.kind], whole: true }
   if (t.slice in symbol) return { one: symbol[t.slice], whole: true }   // IS and ISNT written as symbols
   const starred = /^\*\*([A-Za-z][A-Za-z0-9_]*)\*\*$/.exec(t.slice)   // a bold word of a Markdown source
-  const word = starred ? starred[1].toUpperCase() : t.slice
+  const word = starred ? starred[1].toUpperCase() : smallLetters && /^[a-z]+$/.test(t.slice) ? t.slice.toUpperCase() : t.slice
   if (word in reserved) return { one: [reserved[word]], whole: true }
   return null
 }
@@ -139,18 +144,29 @@ async function compare (engine, lexer, options, file, verbose) {
   const stream = lexerTokens(lexer, options, file, text, lineStart)
   if (stream === null) return null
   const { lines, depth } = await engine.tokenize(scope, text)
-  const rows = lines.map(spans)
+  // blanks are no tokens for the lexer: a token of the grammar without a scope of its own that ends
+  // (or begins) with blanks is taken without them
+  const rows = lines.map(l => spans(l).map(sp => {
+    if (own(sp.scopes).some(x => !x.startsWith('meta.'))) return sp
+    const lead = sp.value.length - sp.value.trimStart().length
+    const trail = sp.value.length - sp.value.trimEnd().length
+    return sp.value.trim() === '' ? sp : Object.assign({}, sp, { start: sp.start + lead, end: sp.end - trail, value: sp.value.trim() })
+  }))
   const problems = []
   const at = (line, column) => path.basename(file) + ':' + (line + 1) + ':' + (column + 1) + ': '
   const note = (t, what) => problems.push(at(t.line, t.column) + t.kind + ' |' + (t.slice || '').split('\n')[0] + '| ' + what)
   const covered = new Uint8Array(text.length + 1)   // the characters that belong to a token of the lexer
   let compared = 0
+  let inPragmat = 0
   for (const t of stream) {
     if (t.slice === null) { note(t, 'is not where the lexer says'); continue }
     covered.fill(1, t.offset, t.offset + t.slice.length)
     if (t.slice.includes('\n')) continue   // a tag or a pragmat over a line end: nothing to compare with
     const from = t.column
     const to = t.column + t.slice.length
+    // GNU's pragmat between double brackets is no pragmat for this lexer: what lies in one is not compared
+    if (smallLetters && rows[t.line].filter(s => s.end > from && s.start < to).every(s => hasScope(s.scopes, 'meta.preprocessor.pragmat')) &&
+        rows[t.line].some(s => s.value === '[[' || s.value === ']]')) { inPragmat++; continue }
     const want = expectation(t)
     if (!want) { note(t, 'is ' + t.kind + ' for the lexer; the grammar knows no such spelling of it'); continue }
     compared++
@@ -190,7 +206,13 @@ async function compare (engine, lexer, options, file, verbose) {
       }
     }
   })
-  if (depth !== 1) problems.push(path.basename(file) + ': the grammar ends inside a construct (depth ' + depth + ')')
+  // the rule that holds the decision on capitals or small letters stays open to the end of the file
+  const last = lines.flat().pop()
+  const decided = last ? (last.scopes.some(x => x.startsWith('meta.stropping.supper')) ? 'supper' : last.scopes.some(x => x.startsWith('meta.stropping.upper')) ? 'upper' : 'none') : 'none'
+  if (depth !== (decided === 'none' ? 1 : 2)) problems.push(path.basename(file) + ': the grammar ends inside a construct (depth ' + depth + ')')
+  if (scope === 'source.algol68' && smallLetters !== (decided === 'supper') && !(decided === 'none' && !smallLetters)) {
+    problems.push(path.basename(file) + ': the grammar reads it as ' + decided + ', the lexer was told ' + (smallLetters ? 'small letters' : 'capitals'))
+  }
   if (verbose) for (const p of problems.slice(0, 12)) console.log('  ' + p)
   return { compared, comment, problems }
 }
@@ -225,7 +247,8 @@ async function main () {
     const flagFile = file.replace(/\.a68(\.md)?$/, '') + '.flags'
     const flags = fs.existsSync(flagFile) ? fs.readFileSync(flagFile, 'utf8').split(/\s+/).filter(f => lexerOptions.includes(f)) : []
     const all = options.concat(flags.filter(f => !options.includes(f)))
-    if (all.includes('--point') || all.includes('--supper')) {
+    smallLetters = all.includes('--supper')
+    if (all.includes('--point')) {
       if (verbose) console.log('SKIP ' + file + ': another stropping regime')
       other++
       continue

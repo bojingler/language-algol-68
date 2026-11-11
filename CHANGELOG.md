@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0
+
+* Sources with reserved words in small letters (GNU Algol 68's default stropping) are read: the
+  grammar `source.algol68` decides for each file between two rule sets, `source.algol68.upper`
+  (bold words in capitals, the grammar of 0.1.0) and `source.algol68.supper`, from the first
+  line that begins with a reserved word. The README says how, and where the decision goes wrong.
+* Every token after the decision carries `meta.stropping.upper.algol68` or
+  `meta.stropping.supper.algol68`; editor settings for small-letter sources (brace comments,
+  indentation).
+* In small letters: GNU's pragmat `[[ … ]]`, its words `word`, `andth`, `orel`, its apostrophe
+  for a selection.
+* Two samples in small letters; `test/regime.js`; the lexer comparison handles small letters.
+
 ## 0.1.0
 
 The first version.

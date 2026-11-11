@@ -1,0 +1,38 @@
+{ Counting the words of a text with a list kept in order, in SUPPER stropping: a mode of the
+  program, a routine with a name as its parameter, an operator, a case clause. }
+begin
+  mode Entry = struct (string spelling, int count, ref Entry next);
+  ref Entry none = nil;
+
+  prio BEFORE = 5;
+  op BEFORE = (string a, b) bool: a < b;
+
+  { the entry of w in the list at head, made where it belongs when it is not there }
+  proc entry_of = (ref ref Entry head, string w) ref Entry:
+    if head :=: none then head := heap Entry := (w, 0, none)
+    elif spelling of head = w then head
+    elif w BEFORE spelling of head then head := heap Entry := (w, 0, head)
+    else entry_of (next of head, w)
+    fi;
+
+  proc is_letter = (char c) bool: c >= "a" AND c <= "z";
+
+  string text = "the quick brown fox jumps over the lazy dog and the cat";
+  ref Entry words := none;
+  string current := "";
+  for i to UPB text + 1 do
+    char c = (i <= UPB text | text[i] | " ");
+    if is_letter (c) then current +:= c
+    elif current /= "" then
+      count of entry_of (words, current) +:= 1;
+      current := ""
+    fi
+  od;
+
+  ref Entry e := words;
+  while e :/=: none do
+    string mark = case count of e in "", " (twice)", " (three times)" out " (often)" esac;
+    puts (spelling of e + mark + "'n");
+    e := next of e
+  od
+end

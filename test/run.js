@@ -10,7 +10,8 @@
 // 2. cases      the scope assertions of test/cases.js
 // 3. samples    every file of samples/ is tokenized; what the grammar takes for comment, string,
 //               pragmat, format text and program text is compared, character by character, with
-//               a scanner written by hand (test/lib/reference.js), and no construct is left open
+//               a scanner written by hand (test/lib/reference.js), no construct is left open, and
+//               the grammar decides on capitals or small letters as the scanner's own rule does
 // 4. settings   the indentation patterns compile and decide a table of lines as intended
 // 5. snippets   every snippet is well formed and its expansion is tokenized as program text
 //
@@ -159,6 +160,24 @@ async function checkCases (engine) {
 
 // ----------------------------------------------------------------- 3. samples ----
 
+// Whether a text leaves nothing open: a semicolon on a line after it is plain punctuation of the
+// program.  (The rule that holds the decision on capitals or small letters stays open to the end of
+// a file, so the depth of the rule stack does not tell.)
+async function closedAtEnd (engine, scope, text) {
+  const { lines } = await engine.tokenize(scope, text + '\n;')
+  const last = lines[lines.length - 1]
+  return last.length === 1 && last[0].value === ';' &&
+    last[0].scopes.every(s => /^(source\.algol68$|meta\.stropping\.|punctuation\.separator\.semicolon\.)/.test(s)) &&
+    last[0].scopes.some(s => s.startsWith('punctuation.separator.semicolon'))
+}
+
+// the rule set the grammar chose for a file: the stropping scope of its last token
+function chosen (lines) {
+  const all = lines.flat()
+  const scopes = all.length ? all[all.length - 1].scopes : []
+  return scopes.some(s => s.startsWith('meta.stropping.supper')) ? 'supper' : scopes.some(s => s.startsWith('meta.stropping.upper')) ? 'upper' : 'none'
+}
+
 // the difference between the classes the grammar gives and those of the reference scanner
 function compareClasses (text, lines, markdown) {
   const want = reference.classify(text, markdown)
@@ -182,7 +201,11 @@ function compareClasses (text, lines, markdown) {
   return { compared, problems }
 }
 
+// the samples written with reserved words in small letters; every other sample is in capitals
+const smallLetterSamples = ['sieve.a68', 'wordcount.a68']
+
 async function checkSamples (engine) {
+  const decisions = {}
   const dir = path.join(root, 'samples')
   const files = fs.readdirSync(dir).filter(f => /\.a68(\.md)?$/.test(f)).sort()
   let lineCount = 0
@@ -196,14 +219,21 @@ async function checkSamples (engine) {
     lineCount += lines.length
     tokenCount += lines.reduce((sum, l) => sum + l.length, 0)
     for (const l of lines) for (const t of l) seen.add(reference.classOf(t.scopes))
-    if (depth !== 1) fail('samples/' + f, 'a construct is open at the end of the file (rule stack of ' + depth + ')')
+    if (markdown ? depth !== 1 : !(await closedAtEnd(engine, 'source.algol68', text))) fail('samples/' + f, 'a construct is open at the end of the file')
+    if (!markdown) {
+      const want = reference.decide(text).regime
+      const got = chosen(lines)
+      decisions[got] = (decisions[got] || 0) + 1
+      if (got !== want) fail('samples/' + f, 'the grammar reads it as ' + got + ', the reference rule as ' + want)
+      if (got !== (smallLetterSamples.includes(f) ? 'supper' : 'upper')) fail('samples/' + f, 'read as ' + got)
+    }
     const r = compareClasses(text, lines, markdown)
     charCount += r.compared
     for (const p of r.problems) fail('samples/' + f, p)
-    // the last word of a program is END or FED, of a Markdown source **end**: program text and a keyword
+    // the last word of a program is END or FED (end, fed), of a Markdown source **end**: program text and a keyword
     const all = lines.flat().filter(t => t.value.trim() !== '' && !t.value.startsWith('```'))
     const last = all[all.length - 1]
-    if (!last || !/^(END|FED|\*\*end\*\*)$/.test(last.value) || !last.scopes.some(s => s.startsWith('keyword.control'))) {
+    if (!last || !/^(END|FED|end|fed|\*\*end\*\*)$/.test(last.value) || !last.scopes.some(s => s.startsWith('keyword.control'))) {
       fail('samples/' + f, 'the last word is not a closing keyword: ' + (last ? JSON.stringify(last.value) + ' ' + last.scopes.join(' ') : 'nothing'))
     }
     if (verbose) console.log('  samples/' + f + ': ' + lines.length + ' lines')
@@ -212,7 +242,7 @@ async function checkSamples (engine) {
     if (!seen.has(c)) fail('samples', 'no sample has any ' + reference.names[c])
   }
   console.log('samples: ' + files.length + ' files, ' + lineCount + ' lines, ' + tokenCount + ' tokens, ' + charCount +
-    ' characters agree with the reference scanner')
+    ' characters agree with the reference scanner; read as capitals ' + (decisions.upper || 0) + ', as small letters ' + (decisions.supper || 0))
 }
 
 // ---------------------------------------------------------------- 4. settings ----
@@ -253,11 +283,44 @@ const indentation = [
   ['INTEGER i; DOT d; ENDING e;', false, false]
 ]
 
+// the same table for a source in small letters
+const indentationSmall = [
+  ['begin', true, false],
+  ['  begin int n := 0;', true, false],
+  ['end', false, true],
+  ['if a > b then', true, false],
+  ['then x := 1', true, true],
+  ['else', true, true],
+  ['elif c then', true, true],
+  ['fi;', false, true],
+  ['if a then b else c fi;', false, false],
+  ['case k in', true, false],
+  ['out c', true, true],
+  ['esac', false, true],
+  ['for i to n do', true, false],
+  ['do s +:= i od;', false, true],
+  ['for i to n do s +:= i od;', false, false],
+  ['od', false, true],
+  ['module Shapes =', false, false],
+  ['def', true, false],
+  ['fed', false, true],
+  ['puts ((', true, false],
+  ['));', false, true],
+  ['proc p = (int a) int: a + 1;', false, false],
+  ['indent := endless + done_now;', false, false],
+  ['end_of_file := if_any;', false, false],
+  ['Integer i; Dot d; Ending e;', false, false]
+]
+
 function checkSettings (engine) {
   const file = path.join(root, 'settings', 'language-algol68.cson')
   const settings = engines.readCson(file)
-  const editor = (settings['.source.algol68'] || {}).editor
-  if (!editor) { fail('settings', 'no editor settings for .source.algol68'); return }
+  checkEditor(engine, (settings['.source.algol68'] || {}).editor, '.source.algol68', indentation)
+  checkEditor(engine, (settings['.source.algol68 .meta.stropping.supper.algol68'] || {}).editor, 'small letters', indentationSmall)
+}
+
+function checkEditor (engine, editor, which, indentation) {
+  if (!editor) { fail('settings', 'no editor settings for ' + which); return }
   for (const key of ['commentStart', 'commentEnd', 'increaseIndentPattern', 'decreaseIndentPattern', 'foldEndPattern']) {
     if (typeof editor[key] !== 'string') fail('settings', 'no ' + key)
   }
@@ -270,7 +333,7 @@ function checkSettings (engine) {
     if (engine.matches(editor.increaseIndentPattern, line) !== increase) { wrong++; fail('settings', 'increaseIndentPattern is ' + !increase + ' for ' + JSON.stringify(line)) }
     if (engine.matches(editor.decreaseIndentPattern, line) !== decrease) { wrong++; fail('settings', 'decreaseIndentPattern is ' + !decrease + ' for ' + JSON.stringify(line)) }
   }
-  console.log('settings: 3 patterns compile, ' + indentation.length + ' lines of the indentation table, ' + wrong + ' wrong')
+  console.log('settings (' + which + '): 3 patterns compile, ' + indentation.length + ' lines of the indentation table, ' + wrong + ' wrong')
 }
 
 // ---------------------------------------------------------------- 5. snippets ----
@@ -304,8 +367,8 @@ async function checkSnippets (engine) {
     prefixes.add(s.prefix)
     const text = typeof s.body === 'string' ? expand(s.body) : null
     if (text === null) { fail(where, 'the body is not a snippet'); continue }
-    const { lines, depth } = await engine.tokenize('source.algol68', text)
-    if (depth !== 1) fail(where, 'the expansion leaves a construct open')
+    const { lines } = await engine.tokenize('source.algol68', text)
+    if (!(await closedAtEnd(engine, 'source.algol68', text))) fail(where, 'the expansion leaves a construct open')
     const r = compareClasses(text, lines, false)
     for (const p of r.problems) fail(where, p)
     // a word in capitals that the grammar takes for an indication is one of the snippet's placeholders

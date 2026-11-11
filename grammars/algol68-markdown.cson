@@ -8,7 +8,7 @@
 #   * Inside program text the word between two pairs of asterisks is a bold word:
 #     **begin** is BEGIN.  The opening pair follows no letter, digit or closing bracket and
 #     the closing pair follows the word at once; every other ** is the operator.
-#   * Everything else in a block is the grammar source.algol68.
+#   * Everything else in a block is the grammar source.algol68.upper (bold words in capitals).
 #   * Prose is given to the Markdown grammar of the editor (source.gfm) where there is one.
 'scopeName': 'text.markdown.algol68'
 'name': 'ALGOL 68 (Markdown)'
@@ -52,7 +52,7 @@
         'include': '#star-words'
       }
       {
-        'include': 'source.algol68'
+        'include': 'source.algol68.upper'
       }
     ]
   }

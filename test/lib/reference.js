@@ -18,14 +18,89 @@ const isLower = c => c >= 'a' && c <= 'z'
 const isDigit = c => c >= '0' && c <= '9'
 const isWord = c => c !== undefined && (isUpper(c) || isLower(c) || isDigit(c) || c === '_')
 
+// The stropping the grammar must decide on (README, "Capitals or small letters"), found here by its
+// own rule on the classes of the capitals scanner: the first line that begins, outside a comment,
+// string or format text, with a reserved word in capitals (-> 'upper') or the way only a small-letter
+// source begins a line, with no capital reserved word on the line (-> 'supper').  Yields
+// { regime, at }: at is the offset of that line, -1 for no decision.
+const capitalWords = ('BEGIN END IF THEN ELIF ELSE FI CASE IN OUSE OUT ESAC FOR FROM BY TO WHILE DO OD PAR GOTO GO EXIT SKIP NIL EMPTY ' +
+  'TRUE FALSE MODE PROC OP PRIO REF STRUCT UNION FLEX LONG SHORT HEAP LOC INT REAL BOOL CHAR VOID COMPL BITS BYTES STRING SEMA FILE ' +
+  'CHANNEL FORMAT CO COMMENT PR PRAGMAT MODULE DEF FED POSTLUDE PUB ACCESS NEST DPAR ASYNC FUT PURE OF AT IS ISNT').split(' ')
+// What only a small-letter source begins a line with (after blanks).  Each test takes the word and
+// the rest of the line after it.
+const modeWords = ['int', 'real', 'bool', 'char', 'void', 'string', 'compl', 'bits', 'bytes', 'sema']
+const prefixWords = ['long', 'short', 'word', 'ref', 'flex', 'heap', 'loc']
+const wordAtStart = rest => { const m = /^[ \t]+([A-Za-z][A-Za-z0-9_]*)/.exec(rest); return m ? m[1] : '' }
+const tagThen = (rest, after) => { const m = /^[ \t]+[a-z][a-z0-9_]*[ \t]*/.exec(rest); return m !== null && after.test(rest.slice(m[0].length)) }
+const startsSmall = (word, rest) => {
+  if (word === 'begin') return /^(?:[ \t]+[A-Za-z0-9("\[{#]|[ \t]*$)/.test(rest)
+  if (['if', 'for', 'while', 'case'].includes(word)) return /^[ \t]+[A-Za-z0-9("\[{#]/.test(rest)
+  if (modeWords.includes(word) || prefixWords.includes(word)) {
+    const next = wordAtStart(rest)
+    return modeWords.includes(next) || prefixWords.includes(next) || /^[ \t]+[A-Z[]/.test(rest) || tagThen(rest, /^(?:=|:=|,|;|$)/)
+  }
+  if (word === 'proc') {
+    const next = wordAtStart(rest)
+    return /^[ \t]*\(/.test(rest) || tagThen(rest, /^(?:=|:=)/) || modeWords.includes(next) || prefixWords.includes(next) || /^[ \t]+[A-Z]/.test(rest)
+  }
+  if (word === 'mode') return /^[ \t]+[A-Z]/.test(rest)
+  if (word === 'module' || word === 'access') return /^(?:[ \t]+[A-Z]|[ \t]*$)/.test(rest)
+  if (word === 'op' || word === 'prio') return /^[ \t]*(?:[A-Z]|[-+*/%<>=&~^!?])/.test(rest)
+  if (word === 'struct' || word === 'union') return /^[ \t]*\(/.test(rest)
+  if (word === 'goto') return /^[ \t]+[a-z]/.test(rest)
+  if (word === 'pr' || word === 'pragmat') return /^[ \t]+[A-Za-z"]/.test(rest)
+  return false
+}
+// a declaration in small letters after an opening parenthesis, and GNU's pragmat in this stropping
+const smallDeclaration = /^[ \t]*\(+[ \t]*(?:(?:long|short|word|ref|flex)[ \t]+)*(?:int|real|bool|char|void|string|compl|bits|bytes|sema)[ \t]+[a-z][a-z0-9_]*[ \t]*(?:=|:=|,|;)/
+const smallPragmat = /^[ \t]*\[\[[ \t]*[a-z]/
+
+function decide (text) {
+  const cls = scan(text, false, 'upper')
+  let at = 0
+  while (at < text.length) {
+    const end = text.indexOf('\n', at) < 0 ? text.length : text.indexOf('\n', at)
+    const line = text.slice(at, end)
+    if (cls[at] === CODE || line.length === 0) {
+      const first = /^[ \t]*([A-Za-z][A-Za-z0-9_]*)/.exec(line)
+      if ((smallDeclaration.test(line) || smallPragmat.test(line)) && !(line.match(/[A-Za-z][A-Za-z0-9_]*/g) || []).some(w => capitalWords.includes(w))) {
+        return { regime: 'supper', at }
+      }
+      if (first) {
+        const word = first[1]
+        const rest = line.slice(first[0].length)
+        const capitalOnLine = (line.match(/[A-Za-z][A-Za-z0-9_]*/g) || []).some(w => capitalWords.includes(w))
+        if (capitalWords.includes(word)) return { regime: 'upper', at }
+        if (startsSmall(word, rest) && !capitalOnLine) return { regime: 'supper', at }
+      }
+    }
+    at = end + 1
+  }
+  return { regime: 'none', at: -1 }
+}
+
 function classify (text, markdown) {
+  if (markdown) return scan(text, true, 'upper')
+  const d = decide(text)
+  if (d.regime !== 'supper') return scan(text, false, 'upper')
+  const cls = scan(text, false, 'upper')
+  cls.set(scan(text.slice(d.at), false, 'supper'), d.at)
+  return cls
+}
+
+function scan (text, markdown, regime) {
+  const small = regime === 'supper'
   const n = text.length
   const cls = new Uint8Array(n)
   const mark = (from, to, what) => cls.fill(what, from, Math.min(to, n))
 
   const wordEnd = i => { while (isWord(text[i])) i++; return i }
-  // a bold word that may open or close a comment or pragmat: capitals not preceded by a word character
-  const boldAt = i => isUpper(text[i]) && !isWord(text[i - 1])
+  // a word that may open or close a comment or pragmat: capitals (in a small-letter source also small
+  // letters) not preceded by a word character
+  const boldAt = i => (isUpper(text[i]) || (small && isLower(text[i]))) && !isWord(text[i - 1])
+  // in a small-letter source `co` and `comment` open a comment only before a blank and a letter, digit
+  // or quote (the comment's first word), or at the end of the line
+  const opensSmallComment = e => /^(?:[ \t]+[A-Za-z0-9"]|[ \t]*$)/.test(text.slice(e, lineEnd(e)))
   // in a Markdown source: **word** after no letter, digit or closing bracket; yields the index after it, or 0
   const starAt = i => {
     if (!markdown || text[i] !== '*' || text[i + 1] !== '*') return 0
@@ -184,11 +259,20 @@ function classify (text, markdown) {
       else if (c === '{') i = brace(i)
       else if (c === '"') i = string(i)
       else if (c === '$') i = format(i)
-      else if (star || isUpper(c)) {
+      else if (small && c === '[' && text[i + 1] === '[' && /^[ \t]*[a-z]/.test(text.slice(i + 2, lineEnd(i)))) {
+        // GNU's pragmat between double brackets
+        const close = text.indexOf(']]', i + 2)
+        const j = close < 0 ? n : close + 2
+        mark(i, j, PRAGMAT); i = j
+      } else if (star || isUpper(c) || (small && isLower(c))) {
         const e = star || wordEnd(i)
         const w = star ? text.slice(i + 2, e - 2).toUpperCase() : text.slice(i, e)
         const opens = star || boldAt(i)
-        if (opens && (w === 'CO' || w === 'COMMENT')) i = bold(i, e, w, COMMENT)
+        if (small) {
+          if (opens && (w === 'co' || w === 'comment') && opensSmallComment(e)) i = bold(i, e, w, COMMENT)
+          else if (opens && (w === 'pr' || w === 'pragmat') && /^[ \t]+[A-Za-z"]/.test(text.slice(e, lineEnd(e)))) i = bold(i, e, w, PRAGMAT)
+          else i = e
+        } else if (opens && (w === 'CO' || w === 'COMMENT')) i = bold(i, e, w, COMMENT)
         else if (opens && (w === 'PR' || w === 'PRAGMAT')) i = bold(i, e, w, PRAGMAT)
         else if (opens && !star && w === 'NOTE' && noteOpens(e)) i = note(i, e)
         else i = e
@@ -220,4 +304,4 @@ function classOf (scopes) {
   return CODE
 }
 
-module.exports = { classify, classOf, names, CODE, COMMENT, STRING, PRAGMAT, FORMAT, PROSE }
+module.exports = { classify, decide, classOf, names, CODE, COMMENT, STRING, PRAGMAT, FORMAT, PROSE }

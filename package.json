@@ -1,7 +1,7 @@
 {
   "name": "language-algol-68",
-  "version": "0.1.0",
-  "description": "ALGOL 68 language support in Atom and Pulsar: syntax highlighting, snippets and editor settings for the language of the Revised Report in UPPER stropping, the module facility and the parallel extensions of PA/68",
+  "version": "0.2.0",
+  "description": "ALGOL 68 language support in Atom and Pulsar: syntax highlighting, snippets and editor settings for the language of the Revised Report, with bold words in capitals or reserved words in small letters, the module facility and the parallel extensions of PA/68",
   "keywords": [
     "algol",
     "algol68",

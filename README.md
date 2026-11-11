@@ -1,14 +1,18 @@
 # language-algol-68
 
 ALGOL 68 in Atom and Pulsar: syntax highlighting, snippets and editor settings for the language
-of the Revised Report in UPPER stropping, for the module facility and for the deterministic
-parallel extensions of PA/68. The grammar is a TextMate grammar (scope `source.algol68`, files
-`*.a68`), the kind GitHub's Linguist takes from `language-*` packages for highlighting on
-github.com.
+of the Revised Report, for the module facility and for the deterministic parallel extensions of
+PA/68. Sources with bold words in capitals (`BEGIN`, `INT`: Algol 68 Genie, PA/68) and sources
+with reserved words in small letters (`begin`, `int`: GNU Algol 68's default) are both read; the
+grammar decides for every file which it is. The grammar is a TextMate grammar (scope
+`source.algol68`, files `*.a68`), the kind GitHub's Linguist takes from `language-*` packages for
+highlighting on github.com.
 
 | Path | Contents |
 |---|---|
-| `grammars/algol68.cson` | the grammar `source.algol68` for `*.a68` |
+| `grammars/algol68.cson` | the grammar `source.algol68` for `*.a68`: it decides between the two rule sets below |
+| `grammars/algol68-upper.cson` | `source.algol68.upper`: bold words in capitals |
+| `grammars/algol68-supper.cson` | `source.algol68.supper`: reserved words in small letters |
 | `grammars/algol68-markdown.cson` | the grammar `text.markdown.algol68` for the Markdown source form of PA/68 (`*.a68.md`) |
 | `grammars/algol68-gfm.cson` | ALGOL 68 in the fenced code blocks of Markdown documents (an injection into `source.gfm`) |
 | `settings/` | comment symbols, indentation, folding, bracket pairs |
@@ -16,6 +20,88 @@ github.com.
 | `samples/` | programs for Linguist and for the tests |
 | `spec/`, `test/` | the Atom spec and the tests that run under Node.js |
 | `.github/workflows/` | the tests on GitHub Actions |
+
+## Capitals or small letters
+
+The Report distinguishes bold words (`begin`, `int`, a mode `node`) from identifiers by typeface
+and leaves it to an implementation how a source that has one typeface does it (RR 9.4: the
+representations). Two ways are in use, and a source file is written in one of them:
+
+* **capitals**: a bold word is written in capitals or begins with one, `BEGIN INT n := 1; Node p`,
+  and every small-letter word is an identifier: `in`, `to`, `mode`, `op`, `file` are ordinary
+  names there, and programs use them (3,552 times in 106 source files of the PA/68 compiler). This is
+  UPPER stropping: Algol 68 Genie, PA/68, GNU Algol 68 with `-fstropping=upper`.
+* **small letters**: the reserved words are written `begin int n := 1`, a mode or operator the
+  program declares begins with a capital (`Node`, `MAX`), and an identifier may not be spelled
+  like a reserved word. This is GNU Algol 68's default (it calls it SUPPER stropping).
+
+Colouring reserved words whatever their case would be wrong in the first kind (every `in` and
+`to` a keyword) and colouring only capitals leaves the second kind without its reserved words.
+So the grammar has two rule sets and **decides for each file**:
+
+1. Only the **beginning of a line** is looked at, outside comments and strings. A grammar of
+   regular expressions sees one line at a time and cannot know whether a word in the middle of a
+   line stands in a comment or a string, and prose is full of `to`, `in`, `if`, `for`.
+2. The first line that begins with a **reserved word in capitals** makes the rest of the file
+   capitals.
+3. The first line that begins **the way only a small-letter source does**, and has no reserved
+   word in capitals on it, makes the rest small letters: `begin`; `if`, `for`, `while`, `case`
+   before a word; a declaration (`int n := 3`, `ref Node p`, `long int k`, `proc f =`, `mode Node`,
+   `op MAX`, `prio MAX`, `struct (`, `module Shapes`, `access Units`), also after an opening
+   parenthesis (`(int n = 3; …`); `goto label`; `pr include`; GNU's pragmat `[[include "x"]]`.
+4. Until one of the two happens, and in a file where neither does, lines are read as capitals.
+5. A decision holds to the end of the file. Inside a Markdown document it holds to the end of
+   the fenced block, and every block decides for itself.
+
+Every token after the decision has the scope `meta.stropping.upper.algol68` or
+`meta.stropping.supper.algol68`, so a theme, a snippet or a setting can tell the two apart; the
+editor settings of this package do (brace comments and small-letter indentation rules in a
+small-letter source).
+
+### Where the decision goes wrong
+
+Measured with `test/regime.js` on sources whose stropping is known: GCC's ALGOL 68 test suite
+(804 files, 500 in capitals and 304 in small letters by their options), the 84 files of MCTS, 203 files of the
+PA/68 compiler and its tests. Of these 1,091 files four are read the wrong way, all in GCC's test
+suite: three tests that declare a mode named `BEGIN` on purpose, and a test of an error whose
+text is in capitals although its options say small letters. Four small-letter files, programs of
+one line, stay undecided. On what it decides, the small-letter rule set agrees token for token
+with the lexer of the PA/68 compiler in its small-letter regime, except for constructs of GNU
+Algol 68 that lexer does not know.
+
+The cases, by kind:
+
+* **A small-letter source read as capitals.** Its first line that begins with a reserved word
+  begins with one in capitals: a mode or operator named like a reserved word (`mode BEGIN = int`),
+  or a first line such as `INT` used as an indication. Everything after is then coloured by the
+  capitals rules: small-letter reserved words are plain, capital words are keywords.
+* **A capitals source read as small letters.** Before any line begins with a reserved word in
+  capitals, a line begins with an identifier that looks like a small-letter declaration: a tag
+  `mode` or `op` followed by a capital word that is not reserved (`op MAX b` as an expression), a
+  tag with blanks such as `int count = 3` at the start of a line. Then identifiers like `in` and
+  `to` are keywords for the rest of the file and capital words are mode indications. Programs
+  begin with `BEGIN`, a declaration, a comment or a pragmat, so this takes an unusual first line;
+  none of the 784 capitals files measured has one.
+* **No decision.** A file that never begins a line with a reserved word (a program of one line in
+  parentheses, a fragment for inclusion, a source in point or quote stropping): it is read as
+  capitals. A capitals source loses nothing; a small-letter source keeps its comments, strings,
+  denotations and operators and has no reserved word coloured.
+* **Lines before the decision** are read as capitals. In a small-letter source a reserved word on
+  such a line (in a line that begins with a comment, say) is not coloured.
+* **A file in both.** A decision is never taken back. A source that includes text of the other
+  kind, or a small-letter source with a section in capitals, is read by the first.
+* **`co … co` in small letters.** GNU Algol 68 has brace comments only in this stropping; other
+  compilers' small-letter sources write `co … co` and `comment … comment`. The words open a
+  comment only where a blank and a letter, digit or quote follow, or the line ends: a tag named
+  `co` before a bold operator (`co OVER 2`) or at the end of a line is taken for the comment
+  symbol and swallows the text up to the next `co`.
+* **`pr` in small letters.** GNU writes a pragmat `[[ … ]]` there and `pr`, `pragmat` are tags;
+  other sources write `pr … pr`. `pr` opens a pragmat only before a blank and a letter or a quote.
+* **Markdown fences.** The decision ends at a line that begins with three backquotes or tildes,
+  which is no ALGOL 68; such a line inside a file would end it too.
+* **On GitHub** nothing can be done about a wrong decision. **In the editor** the two rule sets
+  are grammars of their own, *ALGOL 68 (capitals)* and *ALGOL 68 (small letters)*: choose one by
+  hand for a file that is read the wrong way.
 
 ## What is recognised
 
@@ -99,6 +185,7 @@ Markdown document is highlighted as ALGOL 68.
 | comments | `comment.block.hash`, `.cent`, `.bold`, `.bold.note`, `.brace` |
 | a pragmat and its symbols | `meta.preprocessor.pragmat`, `keyword.control.directive.pragmat` |
 | a tag | no scope |
+| every token after the decision on capitals or small letters | `meta.stropping.upper`, `meta.stropping.supper` (around the scopes above) |
 
 Every scope ends in `.algol68`.
 
@@ -107,10 +194,10 @@ Every scope ends in `.algol68`.
 A grammar of regular expressions reads a line at a time and knows no declarations. It decides
 as follows where a compiler knows more.
 
-* **Stropping.** UPPER stropping only. POINT, RES and quote stropping are not recognised. The
-  reserved-word regime of GNU Algol 68 (SUPPER, its default: `if x then … fi`) cannot share a
-  grammar with UPPER stropping: in UPPER stropping `if`, `to`, `mode`, `op`, `from` are
-  identifiers, and sources use them as such.
+* **Stropping.** Capitals (UPPER) and reserved small letters (GNU's SUPPER), decided for each
+  file as "Capitals or small letters" says, with the failures listed there. POINT and quote
+  stropping are not recognised. The rest of this list is about sources in capitals unless it
+  says otherwise.
 * **Capitals.** Reserved words, standard operators and the comment and pragmat symbols are
   recognised in capitals. PA/68 folds the letters of a bold word (`Begin` is `BEGIN` there);
   the grammar takes `Begin` for an indication, and inside a `CO` or `COMMENT` comment the words
@@ -143,8 +230,12 @@ as follows where a compiler knows more.
   program may use them as indications.
 * **Prelude identifiers** are recognised by their spelling; a program that declares its own
   `space` or `pi` sees it scoped as the prelude's.
-* **Not recognised:** the apostrophe as a brief `OF` (GNU Algol 68); a line end inside a string
-  denotation after a backslash (GNU Algol 68).
+* **Small letters.** A tag has no blanks there. A bold word directly after a reserved word is a
+  mode indication (`ref Node`), after a tag or a denotation an operator. The apostrophe between
+  two tags is GNU's selection (`re'z`). GNU's `word`, `andth`, `orel`, `andf`, `orf`, `thef`,
+  `elsf` are reserved. `NOTE … ETON` is not known.
+* **Not recognised:** the apostrophe as a brief `OF` in a capitals source; a line end inside a
+  string denotation after a backslash (GNU Algol 68).
 
 The tool `test/lexer-diff.js` compares the grammar with the PA/68 lexer token by token; the
 differences it finds in the PA/68 sources are of the kinds above.
@@ -160,11 +251,13 @@ ppm link            # Pulsar (also `pulsar -p link`); links into ~/.pulsar/packa
 ```
 
 or copy the directory to `~/.atom/packages/language-algol-68` (`~/.pulsar/packages/…`). Files
-`*.a68` then open as *ALGOL 68* and files `*.a68.md` as *ALGOL 68 (Markdown)*. `npm install` is
-needed for the tests only.
+`*.a68` then open as *ALGOL 68* and files `*.a68.md` as *ALGOL 68 (Markdown)*. *ALGOL 68
+(capitals)* and *ALGOL 68 (small letters)* are the two rule sets, for choosing by hand. `npm
+install` is needed for the tests only.
 
-Line comments are toggled with `# … #`. For PA/68 and GNU Algol 68 sources the brace comment is
-the safer choice, since it nests; select it in the editor's `config.cson`:
+Line comments are toggled with `# … #` in a capitals source and with `{ … }` in a small-letter
+one. For PA/68 sources the brace comment is the safer choice too, since it nests; select it in
+the editor's `config.cson`:
 
 ```cson
 '.source.algol68':
@@ -240,6 +333,7 @@ them in both (PCRE through `grep -P`). The file names `*.a68.md` stay Markdown o
 | File | Origin |
 |---|---|
 | `fractions.a68` | written for this package: the classic style of the Report (capitals, spaces inside tags); runs under Algol 68 Genie |
+| `sieve.a68`, `wordcount.a68` | written for this package: reserved words in small letters; they compile and run with GNU Algol 68 |
 | `texts.a68`, `kernels.a68`, `parallel.a68` | the PA/68 library (`rt/lib`): modules, `PURE PROC`, `DPAR FOR`, brace comments |
 | `prog.a68`, `shapes.a68`, `units.a68` | the PA/68 tests of modules found by their names (`tests/mod`) |
 | `extensions.a68` | PA/68's `tests/run/ext1.a68`: `DPAR`, `DPAR FOR`, `ASYNC`, `AWAIT`, `FUT`, a pragmat |
@@ -274,8 +368,11 @@ runs the same scope assertions. `node test/atom-spec.js` runs it outside the edi
 first-mate.
 
 `node test/lexer-diff.js --lexer PATH/pa68lex FILE.a68 …` compares the grammar with the lexer of
-the PA/68 compiler, token by token; it is for use in the PA/68 repository, where the lexer is
-built.
+the PA/68 compiler, token by token (`--option --supper --option --gnu` for sources in small
+letters); it is for use in the PA/68 repository, where the lexer is built.
+
+`node test/regime.js [--expect upper|supper] [--upper-if TEXT] [--list] FILE.a68 …` says which
+rule set the grammar chooses for each file and counts the files read otherwise than they are.
 
 `.github/workflows/test.yml` runs `npm test` on GitHub Actions.
 

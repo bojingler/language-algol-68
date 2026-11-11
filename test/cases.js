@@ -54,6 +54,33 @@ const literate = [
   '```'
 ].join('\n')
 
+// capitals or small letters: the decision (README, "Capitals or small letters")
+const proseFirst = [
+  '# a program to do things in small steps, if at all #',
+  '{ for the mode of use see below }',
+  'BEGIN INT to := 1, in := 2; print ((to + in, new line)) END'
+].join('\n')
+
+const blocks = [
+  'Prose with begin and END.',
+  '',
+  '```algol68',
+  'begin int n := 1; skip end',
+  '```',
+  '',
+  'More prose: if and FI.',
+  '',
+  '```a68',
+  'BEGIN INT n := 1; SKIP END',
+  '```',
+  '',
+  '~~~algol68',
+  'begin int m := 2 end',
+  '~~~',
+  '',
+  'The end.'
+].join('\n')
+
 module.exports = [
   // ------------------------------------------------------------------ comments ----
   {
@@ -934,6 +961,211 @@ module.exports = [
     expect: [
       ['BEGIN', '!keyword', '!source.embedded.algol68', 'markup.raw'],
       ['END', '=keyword.control.block', 'source.embedded.algol68']
+    ]
+  },
+
+  // ------------------------------------------------- capitals or small letters ----
+  {
+    name: 'prose in a comment decides nothing; the first line that begins with a reserved word in capitals does',
+    text: proseFirst,
+    expect: [
+      ['a program to do things in small steps', 'comment.block.hash', '!meta.stropping'],
+      ['for the mode of use', 'comment.block.brace', '!meta.stropping'],
+      ['BEGIN', '=keyword.control.block', 'meta.stropping.upper'],
+      ['to', at(proseFirst, 'to', 'to := 1'), 'plain', 'meta.stropping.upper'],
+      ['in', at(proseFirst, 'in', 'in := 2'), 'plain'],
+      ['END', '=keyword.control.block']
+    ]
+  },
+  {
+    name: 'a file whose first line with a reserved word at its beginning has it in small letters is read in small letters',
+    text: '{ a program to count in small letters }\nbegin\n  int n := 3; ref int r = n;\n  for i to n do skip od;\n  if n > 2 then n := 0 else n := 1 fi\nend',
+    expect: [
+      ['a program to count in small letters', 'comment.block.brace', '!meta.stropping'],
+      ['begin', '=keyword.control.block', 'meta.stropping.supper'],
+      ['int', 1, '=storage.type.standard'],
+      ['ref', '=storage.modifier.reference'],
+      ['for', '=keyword.control.loop'],
+      ['to', 2, '=keyword.control.loop'],
+      ['do', '=keyword.control.loop'],
+      ['skip', '=constant.language.skip'],
+      ['od', '=keyword.control.loop'],
+      ['if', '=keyword.control.conditional'],
+      ['then', '=keyword.control.conditional'],
+      ['else', '=keyword.control.conditional'],
+      ['fi', '=keyword.control.conditional'],
+      ['end', '=keyword.control.block', 'meta.stropping.supper']
+    ]
+  },
+  {
+    name: 'a tag that spells a reserved word and begins a line decides nothing where it is not followed as a reserved word is',
+    text: 'mode := 3;\nop := mode + 1;\nprint ((op, new line));\nINT k = op',
+    expect: [
+      ['mode', 1, 'plain', '!meta.stropping'],
+      ['op', 1, 'plain', '!meta.stropping'],
+      ['print', '=support.function.transput', '!meta.stropping'],
+      ['INT', '=storage.type.standard', 'meta.stropping.upper'],
+      ['op', 3, 'plain']
+    ]
+  },
+  {
+    name: 'a reserved word in small letters does not decide on a line that has one in capitals',
+    text: 'op OF in := 1;\nIF op OF in = 1 THEN SKIP FI',
+    expect: [
+      ['op', 1, 'plain', '!meta.stropping'],
+      ['OF', 1, '=keyword.operator.word', '!meta.stropping'],
+      ['IF', '=keyword.control.conditional', 'meta.stropping.upper'],
+      ['op', 2, 'plain']
+    ]
+  },
+  {
+    name: 'a file in which no line begins with a reserved word is read as capitals, undecided',
+    text: '(print (("x", new line)); x := (a > b | a | b);\n to := x)',
+    expect: [
+      ['print', '=support.function.transput', '!meta.stropping'],
+      ['new line', '=support.function.transput'],
+      ['to', 'plain', '!meta.stropping']
+    ]
+  },
+  {
+    name: 'in small letters a tag that holds a reserved word is a tag',
+    text: 'begin\n  int end_of_file := 1, format_width := 2, in_x := 3, begin2 := 4;\n  modes := end_of_file\nend',
+    expect: [
+      ['end_of_file', 1, 'plain'],
+      ['format_width', 'plain'],
+      ['in_x', 'plain'],
+      ['begin2', 'plain'],
+      ['modes', 'plain'],
+      ['end_of_file', 2, 'plain']
+    ]
+  },
+  {
+    name: 'in small letters an indication begins with a capital and the bold operators are in capitals',
+    text: 'mode Node = struct (int value, ref Node next);\nop MAX = (int a, b) int: (a > b | a | b);\nprio MAX = 9;\nNode n := (1 MAX 2, nil); int k = ABS value of n + UPB row',
+    expect: [
+      ['mode', '=storage.type.mode', 'meta.stropping.supper'],
+      ['Node', 1, '=entity.name.type.mode'],
+      ['struct', '=storage.type.struct'],
+      ['Node', 2, '=entity.name.type', '!entity.name.type.mode'],
+      ['op', '=storage.type.operator'],
+      ['MAX', 1, '=entity.name.function.operator'],
+      ['prio', '=storage.type.priority'],
+      ['MAX', 2, '=entity.name.function.operator'],
+      ['MAX', 3, '=keyword.operator.word'],
+      ['nil', '=constant.language.nil'],
+      ['ABS', '=keyword.operator.word'],
+      ['of', '=keyword.operator.word'],
+      ['UPB', '=keyword.operator.word']
+    ]
+  },
+  {
+    name: 'in small letters a procedure names itself, a label is one, and a reserved word before a colon is none',
+    text: 'proc twice = (int a)\n  int: 2 * a;\nbegin\n  again: n +:= 1;\n  if n < 3 then goto again fi; go to done;\n  done: skip\nend',
+    expect: [
+      ['proc', '=storage.type.proc'],
+      ['twice', '=entity.name.function'],
+      ['int', 2, '=storage.type.standard', '!entity.name.label'],
+      ['again', 1, '=entity.name.label'],
+      ['goto', '=keyword.control.flow'],
+      ['again', 2, '=entity.name.label'],
+      ['go', 2, '=keyword.control.flow'],
+      ['done', 1, '=entity.name.label'],
+      ['done', 2, '=entity.name.label']
+    ]
+  },
+  {
+    name: 'in small letters brace comments nest, # ... # is kept, and co opens a comment only before a word',
+    text: 'begin\n  { one { two } three } x := 1; # hash # y := 2;\n  co a comment co z := 3;\n  int co := 4; co +:= 1;\n  comment a long\n    comment w := 5\nend',
+    expect: [
+      ['one', 'comment.block.brace'],
+      ['two', 'comment.block.brace'],
+      ['three', 'comment.block.brace'],
+      ['x := 1', '!comment'],
+      ['# hash #', 'comment.block.hash'],
+      ['y := 2', '!comment'],
+      ['co a comment co', 'comment.block.bold'],
+      ['z := 3', '!comment'],
+      ['co := 4', '!comment'],
+      ['co +:= 1', '!comment'],
+      ['a long', 'comment.block.bold'],
+      ['w := 5', '!comment'],
+      ['end', '=keyword.control.block']
+    ]
+  },
+  {
+    name: 'in small letters: a pragmat, a module and its access clause',
+    text: 'pr include "x.a68" pr\nmodule Shapes =\naccess Units, pub Base\ndef\n  pub proc area = (real r) real: scale * r * r;\n  skip\nfed',
+    expect: [
+      ['pr', 1, '=keyword.control.directive.pragmat', 'meta.stropping.supper'],
+      ['include "x.a68"', 'meta.preprocessor.pragmat'],
+      ['module', '=storage.type.module', '!meta.preprocessor'],
+      ['Shapes', '=entity.name.module'],
+      ['access', '=keyword.control.import'],
+      ['Units', '=entity.name.module'],
+      ['pub', 1, '=storage.modifier.pub'],
+      ['Base', '=entity.name.module'],
+      ['def', '=keyword.control.module', '!meta.access'],
+      ['pub', 2, '=storage.modifier.pub'],
+      ['area', '=entity.name.function'],
+      ['real', 1, '=storage.type.standard'],
+      ['fed', '=keyword.control.module']
+    ]
+  },
+  {
+    name: 'in small letters GNU writes a pragmat between double brackets; pr and pragmat are tags, word is a size, andth and orel are reserved',
+    text: '[[include "hello.a68"]]\nbegin int pr = 10, pragmat = 20;\n      word bits address = word 16rff;\n      if pr > 5 andth pragmat > 5 orel pr = 0 then skip fi\nend',
+    expect: [
+      ['[[', '=keyword.control.directive.pragmat', 'meta.stropping.supper'],
+      ['include "hello.a68"', 'meta.preprocessor.pragmat'],
+      [']]', '=keyword.control.directive.pragmat'],
+      ['begin', '=keyword.control.block', '!meta.preprocessor'],
+      ['pr', 1, 'plain'],
+      ['pragmat', 1, 'plain'],
+      ['word', 1, '=storage.modifier.size'],
+      ['bits', '=storage.type.standard'],
+      ['word', 2, '=storage.modifier.size'],
+      ['16rff', '=constant.numeric.bits'],
+      ['pr', 3, 'plain'],
+      ['andth', '=keyword.operator.word'],
+      ['orel', '=keyword.operator.word'],
+      ['fi', '=keyword.control.conditional']
+    ]
+  },
+  {
+    name: 'a declaration in small letters after an opening parenthesis decides for small letters',
+    text: '(bits a = 2r01; int n := 3;\n while n > 0 do n -:= 1 od; skip)',
+    expect: [
+      ['bits', '=storage.type.standard', 'meta.stropping.supper'],
+      ['int', '=storage.type.standard'],
+      ['while', '=keyword.control.loop'],
+      ['do', '=keyword.control.loop'],
+      ['od', '=keyword.control.loop'],
+      ['skip', '=constant.language.skip']
+    ]
+  },
+  {
+    name: 'in capitals a tag with blanks after an opening parenthesis decides nothing',
+    text: '(int width OF x := 3;\n real width + 1;\n INT k = bits width)',
+    expect: [
+      ['int width', '!storage', '!meta.stropping'],
+      ['real width', '!storage', '!meta.stropping'],
+      ['INT', '=storage.type.standard', 'meta.stropping.upper'],
+      ['bits width', '=support.constant']
+    ]
+  },
+  {
+    name: 'in a Markdown document every fenced block decides for itself, and the decision ends with the block',
+    grammar: 'source.gfm',
+    text: blocks,
+    expect: [
+      ['Prose with begin and END', '!keyword', '!meta.stropping'],
+      ['begin', 2, '=keyword.control.block', 'meta.stropping.supper'],
+      ['int', 1, '=storage.type.standard'],
+      ['More prose: if and FI', '!keyword', '!meta.stropping', '!source.embedded.algol68'],
+      ['BEGIN', '=keyword.control.block', 'meta.stropping.upper'],
+      ['INT', '=storage.type.standard'],
+      ['begin', 3, '=keyword.control.block', 'meta.stropping.supper'],
+      ['The end', '!keyword', '!meta.stropping', '!source.embedded.algol68']
     ]
   },
 

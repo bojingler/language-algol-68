@@ -21,6 +21,9 @@ describe('language-algol-68', () => {
     expect(markdown).toBeTruthy()
     expect(markdown.name).toBe('ALGOL 68 (Markdown)')
     expect(atom.grammars.grammarForScopeName('source.gfm.algol68')).toBeTruthy()
+    // the two rule sets between which source.algol68 decides; they can be chosen by hand
+    expect(atom.grammars.grammarForScopeName('source.algol68.upper').name).toBe('ALGOL 68 (capitals)')
+    expect(atom.grammars.grammarForScopeName('source.algol68.supper').name).toBe('ALGOL 68 (small letters)')
   })
 
   it('selects a grammar by the name of the file', () => {
